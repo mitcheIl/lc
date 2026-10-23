@@ -229,8 +229,8 @@
         </div>
       </div>
       <div class="row">
-        <div class="form-group"><label for="lowPrice">Lowest Price Seen *</label><input type="number" id="lowPrice" required min="0" step="any" placeholder="e.g., 2100000"></div>
-        <div class="form-group"><label for="highPrice">Highest Price Seen</label><input type="number" id="highPrice" min="0" step="any" placeholder="Optional"></div>
+        <div class="form-group"><label for="itemPrice">Price *</label><input type="number" id="itemPrice" required min="0" step="any" placeholder="e.g., 2100000"></div>
+        <div class="form-group"><label for="itemQty">Quantity *</label><input type="number" id="itemQty" required min="1" step="1" placeholder="e.g., 5"></div>
       </div>
       <div class="row">
         <div class="form-group"><label for="event">Event</label>
@@ -286,8 +286,8 @@
             <th data-sort="date">Date</th>
             <th data-sort="item">Item</th>
             <th data-sort="location">Source</th>
-            <th data-sort="low">Low</th>
-            <th data-sort="high">High</th>
+            <th data-sort="price">Price</th>
+            <th data-sort="qty">Qty</th>
             <th data-sort="event">Event</th>
             <th data-sort="loggedBy">By</th>
             <th></th>
@@ -316,8 +316,8 @@
       </div>
     </div>
     <div class="stat-grid" style="margin-top:8px;">
-      <div class="stat-box"><div class="value" id="avgLow">-</div><div class="label">Avg. Low</div></div>
-      <div class="stat-box"><div class="value" id="avgHigh">-</div><div class="label">Avg. High</div></div>
+      <div class="stat-box"><div class="value" id="avgPrice">-</div><div class="label">Avg. Price</div></div>
+      <div class="stat-box"><div class="value" id="totalQty">-</div><div class="label">Total Qty Seen</div></div>
       <div class="stat-box"><div class="value" id="minPrice">-</div><div class="label">All-Time Low</div></div>
       <div class="stat-box"><div class="value" id="maxPrice">-</div><div class="label">All-Time High</div></div>
       <div class="stat-box"><div class="value" id="trendBox">-</div><div class="label">7d Trend</div></div>
@@ -330,7 +330,7 @@
     <div class="chart-container"><canvas id="priceChart"></canvas></div>
     <div id="eventImpactSection" style="margin-top:16px;">
       <h3 style="font-size:0.95rem;margin-bottom:6px;color:var(--primary);">🎪 Event Impact</h3>
-      <table class="event-table" id="eventTable"><thead><tr><th>Event</th><th>Observations</th><th>Avg Low</th><th>vs Overall</th></tr></thead><tbody></tbody></table>
+      <table class="event-table" id="eventTable"><thead><tr><th>Event</th><th>Observations</th><th>Avg Price</th><th>vs Overall</th></tr></thead><tbody></tbody></table>
       <p id="eventImpactEmpty" class="empty-state" style="display:none;">Not enough data to analyze event impact.</p>
     </div>
   </div>
@@ -347,7 +347,7 @@
 <!-- ===== DEALS VIEW ===== -->
 <section id="view-deals" class="view">
   <div class="card">
-    <h2>🔥 Deal Finder <span class="h2-right">Current low ≥15% below 14-day avg</span></h2>
+    <h2>🔥 Deal Finder <span class="h2-right">Current price ≥15% below 14-day avg</span></h2>
     <p class="data-hint" style="margin-bottom:10px;">Items priced below their recent average — potential flips. Requires at least 3 observations in the last 14 days.</p>
     <div id="dealsBody"></div>
   </div>
@@ -417,9 +417,6 @@
       </div>
       <button id="mergeBtn" class="secondary small">🔀 Merge</button>
       <div style="margin-top:12px;"><strong style="font-size:0.85rem;">Possible duplicates:</strong><div id="dupesList" class="data-hint">Scanning...</div></div>
-
-      <h3 style="font-size:1rem;margin:20px 0 8px;">✏️ Edit Observation</h3>
-      <p class="data-hint" style="margin-bottom:10px;">Find an observation by ID or filter. Click ✏️ in the table for direct editing.</p>
     </div>
 
     <div id="admin-tab-trash" class="admin-tab-content">
@@ -427,7 +424,7 @@
         <button id="refreshTrashBtn" class="secondary small">🔄 Refresh</button>
         <button id="emptyTrashBtn" class="danger small">💀 Empty All Trash</button>
       </div>
-      <p class="data-hint" style="margin-bottom:10px;">Deleted observations are recoverable for 30 days. After that, they can be permanently removed.</p>
+      <p class="data-hint" style="margin-bottom:10px;">Deleted observations are recoverable for 30 days.</p>
       <div id="trashList"></div>
     </div>
 
@@ -485,7 +482,6 @@ const ADMIN_UIDS = [
 const GITHUB_REPO = 'mitchelI/lc';
 const GITHUB_BRANCH = 'main';
 
-// 🎨 Chart.js event marker color per event type
 const EVENT_COLORS = {
   'Double Drop':'rgba(168,85,247,.55)', 'EXP Boost':'rgba(59,130,246,.55)',
   'Upgrade Event':'rgba(249,115,22,.55)', 'Jewel Event':'rgba(236,72,153,.55)',
@@ -500,7 +496,6 @@ let readOnly = false, chartInstance = null;
 let pendingDeleteIds = [];
 let watchlist = JSON.parse(localStorage.getItem('lc_watchlist') || '[]');
 
-// View state
 let activeView = 'prices';
 let sortKey = 'date', sortDir = 'desc';
 let currentPage = 1;
@@ -513,7 +508,10 @@ const itemSuggest = $('itemSuggest');
 const loggedByInput = $('loggedBy');
 const toastEl = $('toast');
 
-// ---- Theme ----
+// Helper to get price whether it's old data (low) or new data (price)
+function getPrice(o) { return typeof o.price === 'number' ? o.price : (o.low || 0); }
+function getQty(o) { return typeof o.qty === 'number' ? o.qty : 1; }
+
 const savedTheme = localStorage.getItem('lc_theme');
 if (savedTheme) document.body.dataset.theme = savedTheme;
 else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) document.body.dataset.theme = 'dark';
@@ -526,7 +524,6 @@ $('themeToggle').addEventListener('click', () => {
 });
 function updateThemeIcon() { $('themeToggle').textContent = document.body.dataset.theme === 'dark' ? '☀️' : '🌙'; }
 
-// ---- Helpers ----
 function showToast(msg, type='') {
   toastEl.textContent = msg;
   toastEl.className = 'toast show ' + type;
@@ -556,7 +553,6 @@ function setConnection(state, label) {
   el.textContent = label || (state==='live' ? '🟢 Live' : state==='offline' ? '🔴 Offline' : '⏳ Connecting…');
 }
 
-// ---- Item-name suggestion dropdown ----
 let activeSuggestion = -1;
 function showSuggestions(query) {
   const items = getUniqueItems();
@@ -606,7 +602,6 @@ itemNameInput.addEventListener('keydown', e => {
   else if (e.key === 'Escape') itemSuggest.classList.remove('show');
 });
 
-// ---- Quick find (header) ----
 const quickFind = $('quickFind');
 const quickFindResults = $('quickFindResults');
 quickFind.addEventListener('input', () => {
@@ -635,7 +630,6 @@ quickFind.addEventListener('input', () => {
 });
 quickFind.addEventListener('blur', () => setTimeout(() => quickFindResults.classList.remove('show'), 150));
 
-// ---- Firebase ----
 try {
   const app = initializeApp(firebaseConfig);
   db = getDatabase(app);
@@ -720,21 +714,18 @@ function updateReadOnlyUI() {
   if ($('readOnlyToggle')) $('readOnlyToggle').checked = readOnly;
 }
 
-// ---- Submit observation ----
 $('priceForm').addEventListener('submit', async e => {
   e.preventDefault();
   if (readOnly) return showToast('Read-only mode is active.', 'error');
   let item = itemNameInput.value.trim().replace(/\s+/g, ' ');
   const location = $('location').value;
-  const low = parseFloat($('lowPrice').value);
-  const highRaw = $('highPrice').value;
-  const high = highRaw ? parseFloat(highRaw) : null;
+  const price = parseFloat($('itemPrice').value);
+  const qty = parseInt($('itemQty').value, 10);
   const event = $('event').value, notes = $('notes').value.trim();
   const loggedBy = loggedByInput.value.trim();
 
-  if (!item || !location || isNaN(low) || !loggedBy) return showToast('Fill all required fields.', 'error');
+  if (!item || !location || isNaN(price) || isNaN(qty) || !loggedBy) return showToast('Fill all required fields.', 'error');
 
-  // Dedup
   const items = getUniqueItems();
   const normalized = normalize(item);
   const exact = items.find(it => normalize(it) === normalized);
@@ -752,11 +743,10 @@ $('priceForm').addEventListener('submit', async e => {
       }
     }
   }
-  if (high !== null && high < low && !confirm('Highest < lowest. Save anyway?')) return;
 
   $('submitBtn').disabled = true;
   try {
-    await push(ref(db, 'observations'), { item, location, low, high: high===null?null:high, event: event||null, notes: notes||null, loggedBy, date: serverTimestamp(), uid: currentUid });
+    await push(ref(db, 'observations'), { item, location, price, qty, event: event||null, notes: notes||null, loggedBy, date: serverTimestamp(), uid: currentUid });
     localStorage.setItem('lc_guild_logger_name', loggedBy);
     $('priceForm').reset();
     loggedByInput.value = loggedBy;
@@ -768,7 +758,6 @@ const savedName = localStorage.getItem('lc_guild_logger_name');
 if (savedName) loggedByInput.value = savedName;
 loggedByInput.addEventListener('change', () => localStorage.setItem('lc_guild_logger_name', loggedByInput.value.trim()));
 
-// ---- View switching ----
 document.querySelectorAll('.main-tabs button').forEach(btn => {
   btn.addEventListener('click', () => switchView(btn.dataset.view));
 });
@@ -779,7 +768,6 @@ function switchView(view) {
   renderAll();
 }
 
-// ---- Admin sub-tabs ----
 document.querySelectorAll('.admin-tabs button').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.admin-tabs button').forEach(b => b.classList.remove('active'));
@@ -790,7 +778,6 @@ document.querySelectorAll('.admin-tabs button').forEach(btn => {
   });
 });
 
-// ---- Filter listeners ----
 $('searchInput').addEventListener('input', () => { currentPage = 1; renderPricesView(); });
 $('sourceFilter').addEventListener('change', () => { currentPage = 1; renderPricesView(); });
 $('dateRangeFilter').addEventListener('change', e => { dateRangeFilter = e.target.value; currentPage = 1; renderPricesView(); });
@@ -798,7 +785,6 @@ $('outliersOnly').addEventListener('change', () => { currentPage = 1; renderPric
 $('analyticsSearch').addEventListener('input', populateAnalyticsDropdown);
 $('analyticsItem').addEventListener('change', renderAnalyticsView);
 
-// Sortable headers
 document.querySelectorAll('#priceTable th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
     const key = th.dataset.sort;
@@ -808,32 +794,28 @@ document.querySelectorAll('#priceTable th[data-sort]').forEach(th => {
   });
 });
 
-// ============================================================
-// OUTLIER DETECTION
-// ============================================================
 function computeOutliers() {
   const byItem = {};
   observations.forEach(o => {
-    if (typeof o.low !== 'number') return;
+    const p = getPrice(o);
+    if (p <= 0) return;
     if (!byItem[o.item]) byItem[o.item] = [];
-    byItem[o.item].push(o.low);
+    byItem[o.item].push(p);
   });
   const outliers = new Set();
-  for (const [item, lows] of Object.entries(byItem)) {
-    if (lows.length < 3) continue;
-    const sorted = lows.slice().sort((a,b)=>a-b);
+  for (const [item, prices] of Object.entries(byItem)) {
+    if (prices.length < 3) continue;
+    const sorted = prices.slice().sort((a,b)=>a-b);
     const median = sorted[Math.floor(sorted.length / 2)];
     if (!median || median <= 0) continue;
     observations.filter(o => o.item === item).forEach(o => {
-      if (o.low > median * 3 || o.low < median / 3) outliers.add(o.id);
+      const p = getPrice(o);
+      if (p > median * 3 || p < median / 3) outliers.add(o.id);
     });
   }
   return outliers;
 }
 
-// ============================================================
-// PRICES VIEW
-// ============================================================
 function filterObservations() {
   const q = ($('searchInput').value || '').toLowerCase();
   const src = $('sourceFilter').value;
@@ -852,19 +834,23 @@ function filterObservations() {
     return true;
   });
 }
+
 function sortObservations(list) {
   return list.slice().sort((a,b) => {
-    let av = a[sortKey], bv = b[sortKey];
+    let av, bv;
+    if (sortKey === 'price') { av = getPrice(a); bv = getPrice(b); }
+    else if (sortKey === 'qty') { av = getQty(a); bv = getQty(b); }
+    else { av = a[sortKey]; bv = b[sortKey]; }
+    
     if (sortKey === 'date') { av = av||0; bv = bv||0; }
-    if (sortKey === 'low' || sortKey === 'high') { av = av||0; bv = bv||0; }
     if (typeof av === 'string') av = av.toLowerCase();
     if (typeof bv === 'string') bv = bv.toLowerCase();
     if (av === bv) return 0;
     return (av > bv ? 1 : -1) * (sortDir === 'asc' ? 1 : -1);
   });
 }
+
 function renderPricesView() {
-  // Sort headers
   document.querySelectorAll('#priceTable th[data-sort]').forEach(th => {
     th.classList.toggle('sorted-asc', th.dataset.sort === sortKey && sortDir === 'asc');
     th.classList.toggle('sorted-desc', th.dataset.sort === sortKey && sortDir === 'desc');
@@ -895,8 +881,8 @@ function renderPricesView() {
         <td style="white-space:nowrap;font-size:0.8rem;">${fmtDate(o.date)}</td>
         <td><strong><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);" data-jump="${esc(o.item)}">${esc(o.item)}</a></strong>${isOutlier?' <span class="outlier-icon" title="Possible outlier (3× median)">⚠️</span>':''}</td>
         <td><span class="badge ${badgeClass}">${esc(o.location)}</span></td>
-        <td>${fmtNum(o.low)}</td>
-        <td>${fmtNum(o.high)}</td>
+        <td>${fmtNum(getPrice(o))}</td>
+        <td>${getQty(o)}</td>
         <td>${o.event ? esc(o.event) : '-'}</td>
         <td style="font-size:0.8rem;">${esc(o.loggedBy||'-')}</td>
         <td>${isAdmin ? `<button class="danger small" data-del="${o.id}">✕</button> <button class="secondary small" data-edit="${o.id}">✏️</button>` : ''}</td>
@@ -920,6 +906,7 @@ function renderPricesView() {
   renderPagination(totalPages, filtered.length);
   renderWatchlist();
 }
+
 function renderPagination(totalPages, totalItems) {
   const el = $('pagination');
   if (totalItems === 0) { el.innerHTML = ''; return; }
@@ -942,7 +929,6 @@ function renderPagination(totalPages, totalItems) {
   });
 }
 
-// ---- Watchlist ----
 function toggleWatchlist(item) {
   const idx = watchlist.indexOf(item);
   if (idx >= 0) watchlist.splice(idx, 1);
@@ -950,6 +936,7 @@ function toggleWatchlist(item) {
   localStorage.setItem('lc_watchlist', JSON.stringify(watchlist));
   renderAll();
 }
+
 function renderWatchlist() {
   const card = $('watchlistCard');
   const body = $('watchlistBody');
@@ -960,10 +947,10 @@ function renderWatchlist() {
     const obs = observations.filter(o => o.item === item);
     if (obs.length === 0) return `<div class="deal-row"><div class="deal-info"><div class="item-name">${esc(item)}</div><div class="deal-meta">No observations</div></div></div>`;
     const latest = obs[0];
-    const avg = obs.slice(0,20).reduce((s,o)=>s+o.low,0) / Math.min(20, obs.length);
+    const avg = obs.slice(0,20).reduce((s,o)=>s+getPrice(o),0) / Math.min(20, obs.length);
     const trend = computeTrend(obs);
     const trendStr = trend ? `<span class="${trend.pct>2?'trend-up':trend.pct<-2?'trend-down':'trend-flat'}">${trend.pct>0?'▲':trend.pct<0?'▼':'■'} ${Math.abs(trend.pct).toFixed(1)}%</span>` : '';
-    return `<div class="deal-row"><div class="deal-info"><div class="item-name"><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);" data-jump="${esc(item)}">${esc(item)}</a></div><div class="deal-meta">Current low: ${fmtNum(latest.low)} • Avg: ${fmtNum(avg)}</div></div><div style="display:flex;gap:8px;align-items:center;">${trendStr}<button class="pin-btn active" data-unwatch="${esc(item)}" title="Remove from watchlist">✕</button></div></div>`;
+    return `<div class="deal-row"><div class="deal-info"><div class="item-name"><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);" data-jump="${esc(item)}">${esc(item)}</a></div><div class="deal-meta">Latest: ${fmtNum(getPrice(latest))} • Avg: ${fmtNum(avg)}</div></div><div style="display:flex;gap:8px;align-items:center;">${trendStr}<button class="pin-btn active" data-unwatch="${esc(item)}" title="Remove from watchlist">✕</button></div></div>`;
   }).join('');
   body.innerHTML = itemsHtml;
   body.querySelectorAll('button[data-unwatch]').forEach(btn => btn.addEventListener('click', () => toggleWatchlist(btn.dataset.unwatch)));
@@ -977,18 +964,16 @@ function renderWatchlist() {
   }));
 }
 
-// ============================================================
-// ANALYTICS VIEW
-// ============================================================
 function computeTrend(obs) {
   const now = Date.now(), week = 7 * 86400000;
   const recent = obs.filter(o => (o.date||0) >= now - week);
   const prev = obs.filter(o => (o.date||0) >= now - 2*week && (o.date||0) < now - week);
   if (recent.length === 0 || prev.length === 0) return null;
-  const recentAvg = recent.reduce((s,o)=>s+o.low,0) / recent.length;
-  const prevAvg = prev.reduce((s,o)=>s+o.low,0) / prev.length;
+  const recentAvg = recent.reduce((s,o)=>s+getPrice(o),0) / recent.length;
+  const prevAvg = prev.reduce((s,o)=>s+getPrice(o),0) / prev.length;
   return { pct: ((recentAvg - prevAvg) / prevAvg) * 100, recentAvg, prevAvg, recentCount: recent.length, prevCount: prev.length };
 }
+
 function computeConfidence(obs) {
   if (obs.length === 0) return { score:0, label:'None', obsCount:0, contributors:0, daysCovered:0 };
   const contributors = new Set(obs.map(o => (o.loggedBy||'').trim()).filter(Boolean)).size;
@@ -999,10 +984,11 @@ function computeConfidence(obs) {
   const label = score >= 70 ? 'High' : score >= 40 ? 'Medium' : 'Low';
   return { score, label, obsCount: obs.length, contributors, daysCovered: Math.round(daysCovered) };
 }
+
 function computeBestTimes(obs) {
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const byDow = Array.from({length:7}, () => []);
-  obs.forEach(o => { if (o.date && typeof o.low === 'number') byDow[new Date(o.date).getDay()].push(o.low); });
+  obs.forEach(o => { if (o.date) byDow[new Date(o.date).getDay()].push(getPrice(o)); });
   let buyIdx = -1, sellIdx = -1, buyAvg = Infinity, sellAvg = -Infinity;
   byDow.forEach((arr, i) => {
     if (!arr.length) return;
@@ -1015,6 +1001,7 @@ function computeBestTimes(obs) {
     sellDay: sellIdx >= 0 ? { day: days[sellIdx], avg: sellAvg } : null
   };
 }
+
 function populateAnalyticsDropdown() {
   const allItems = getUniqueItems();
   const filter = normalize($('analyticsSearch').value);
@@ -1028,6 +1015,7 @@ function populateAnalyticsDropdown() {
   });
   if (filtered.includes(current)) $('analyticsItem').value = current;
 }
+
 function renderAnalyticsView() {
   if (activeView !== 'analytics') return;
   populateAnalyticsDropdown();
@@ -1036,7 +1024,7 @@ function renderAnalyticsView() {
   const noteUpdatedBy = $('noteUpdatedBy');
 
   if (!selected) {
-    ['avgLow','avgHigh','minPrice','maxPrice','trendBox','confLabel'].forEach(id => $(id).textContent = '-');
+    ['avgPrice','totalQty','minPrice','maxPrice','trendBox','confLabel'].forEach(id => $(id).textContent = '-');
     $('confBar').style.width = '0%'; $('confDetail').textContent = '';
     $('bestBuyDay').textContent = '-'; $('bestSellDay').textContent = '-';
     $('bestBuyDayDetail').textContent = ''; $('bestSellDayDetail').textContent = '';
@@ -1048,15 +1036,15 @@ function renderAnalyticsView() {
   }
 
   const itemObs = observations.filter(o => o.item === selected).slice().sort((a,b) => (a.date||0) - (b.date||0));
-  const lows = itemObs.map(o => o.low).filter(n => typeof n === 'number');
-  const highs = itemObs.map(o => o.high).filter(n => typeof n === 'number');
+  const prices = itemObs.map(o => getPrice(o)).filter(n => typeof n === 'number');
+  const qtys = itemObs.map(o => getQty(o));
+  const totalQtySeen = qtys.reduce((a,b)=>a+b, 0);
 
-  $('avgLow').textContent = fmtNum(lows.length ? lows.reduce((a,b)=>a+b,0) / lows.length : null);
-  $('avgHigh').textContent = fmtNum(highs.length ? highs.reduce((a,b)=>a+b,0) / highs.length : null);
-  $('minPrice').textContent = fmtNum(lows.length ? Math.min(...lows) : null);
-  $('maxPrice').textContent = fmtNum(highs.length ? Math.max(...highs) : null);
+  $('avgPrice').textContent = fmtNum(prices.length ? prices.reduce((a,b)=>a+b,0) / prices.length : null);
+  $('totalQty').textContent = fmtNum(totalQtySeen);
+  $('minPrice').textContent = fmtNum(prices.length ? Math.min(...prices) : null);
+  $('maxPrice').textContent = fmtNum(prices.length ? Math.max(...prices) : null);
 
-  // Trend
   const trend = computeTrend(itemObs);
   if (trend) {
     const cls = trend.pct > 2 ? 'trend-up' : trend.pct < -2 ? 'trend-down' : 'trend-flat';
@@ -1065,32 +1053,28 @@ function renderAnalyticsView() {
     $('trendBox').textContent = '—';
   }
 
-  // Confidence
   const conf = computeConfidence(itemObs);
   $('confLabel').textContent = conf.label;
   $('confBar').style.width = conf.score + '%';
   $('confBar').style.background = conf.score >= 70 ? 'var(--success)' : conf.score >= 40 ? 'var(--warning)' : 'var(--danger)';
   $('confDetail').textContent = `${conf.obsCount} obs • ${conf.contributors} user${conf.contributors!==1?'s':''} • ${conf.daysCovered}d`;
 
-  // Best times
   const bt = computeBestTimes(itemObs);
   $('bestBuyDay').textContent = bt.buyDay ? bt.buyDay.day : '—';
   $('bestBuyDayDetail').textContent = bt.buyDay ? `avg ${fmtNum(bt.buyDay.avg)}` : '';
   $('bestSellDay').textContent = bt.sellDay ? bt.sellDay.day : '—';
   $('bestSellDayDetail').textContent = bt.sellDay ? `avg ${fmtNum(bt.sellDay.avg)}` : '';
 
-  // Chart
   renderChart(itemObs);
   renderEventImpact(itemObs);
 
-  // Notes
   const note = itemNotes.find(n => n.item === selected);
   noteText.value = note ? note.note : '';
   noteUpdatedBy.textContent = note ? `Last edited by ${note.updatedBy} • ${fmtDate(note.updatedAt)}` : 'No note yet';
 
-  // Store reference
   $('saveNoteBtn').dataset.item = selected;
 }
+
 function renderChart(itemObs) {
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
   const labels = itemObs.map(o => fmtDateShort(o.date));
@@ -1110,8 +1094,8 @@ function renderChart(itemObs) {
     data: {
       labels,
       datasets: [
-        { label:'Lowest', data: itemObs.map(o => o.low), borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,0.1)', fill:true, tension:0.3, pointRadius:4 },
-        { label:'Highest', data: itemObs.map(o => o.high ?? null), borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,0.1)', fill:true, tension:0.3, pointRadius:4, spanGaps:true }
+        { label:'Price', data: itemObs.map(o => getPrice(o)), borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,0.1)', fill:true, tension:0.3, pointRadius:4 },
+        { label:'Quantity', data: itemObs.map(o => getQty(o)), borderColor:'#10b981', backgroundColor:'rgba(16,185,129,0.1)', fill:false, tension:0.3, pointRadius:4, borderDash:[5,5], yAxisID:'y1' }
       ]
     },
     options: {
@@ -1121,7 +1105,8 @@ function renderChart(itemObs) {
         tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString() } }
       },
       scales: {
-        y: { beginAtZero:false, ticks: { callback: v => v.toLocaleString(), color: getComputedStyle(document.body).getPropertyValue('--text-light').trim() } },
+        y: { beginAtZero:false, ticks: { callback: v => v.toLocaleString(), color: getComputedStyle(document.body).getPropertyValue('--text-light').trim() }, title: { display: true, text: 'Price', color: getComputedStyle(document.body).getPropertyValue('--text-light').trim() } },
+        y1: { position: 'right', beginAtZero:true, ticks: { color: getComputedStyle(document.body).getPropertyValue('--text-light').trim() }, grid: { drawOnChartArea: false }, title: { display: true, text: 'Quantity', color: getComputedStyle(document.body).getPropertyValue('--text-light').trim() } },
         x: { ticks: { color: getComputedStyle(document.body).getPropertyValue('--text-light').trim() } }
       }
     }
@@ -1130,17 +1115,19 @@ function renderChart(itemObs) {
     config.options.plugins.annotation = { annotations };
   }
   try { chartInstance = new Chart(ctx, config); }
-  catch (err) { console.warn('Chart error:', err); chartInstance = new Chart(ctx, config.type ? { ...config, options: { ...config.options, plugins: { ...config.options.plugins, annotation: undefined } } } : config); }
+  catch (err) { console.warn('Chart error:', err); }
 }
+
 function renderEventImpact(itemObs) {
   const body = $('eventTable').querySelector('tbody');
-  const overall = itemObs.map(o => o.low).filter(n => typeof n === 'number');
+  const overall = itemObs.map(o => getPrice(o)).filter(n => typeof n === 'number');
   const overallAvg = overall.length ? overall.reduce((a,b)=>a+b,0) / overall.length : null;
   const byEvent = {};
   itemObs.forEach(o => {
-    if (!o.event || typeof o.low !== 'number') return;
+    if (!o.event) return;
+    const p = getPrice(o);
     if (!byEvent[o.event]) byEvent[o.event] = [];
-    byEvent[o.event].push(o.low);
+    byEvent[o.event].push(p);
   });
   const rows = Object.entries(byEvent).map(([ev, arr]) => {
     const avg = arr.reduce((a,b)=>a+b,0) / arr.length;
@@ -1155,7 +1142,6 @@ function renderEventImpact(itemObs) {
   $('eventImpactEmpty').style.display = rows.length ? 'none' : 'block';
 }
 
-// Save note
 $('saveNoteBtn').addEventListener('click', async () => {
   const item = $('saveNoteBtn').dataset.item;
   if (!item) return;
@@ -1171,15 +1157,11 @@ $('saveNoteBtn').addEventListener('click', async () => {
   } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
 });
 
-// ============================================================
-// DEALS VIEW
-// ============================================================
 function renderDealsView() {
   if (activeView !== 'deals') return;
   const now = Date.now(), twoWeeks = 14 * 86400000;
   const byItem = {};
   observations.forEach(o => {
-    if (typeof o.low !== 'number') return;
     if (!byItem[o.item]) byItem[o.item] = [];
     byItem[o.item].push(o);
   });
@@ -1187,12 +1169,12 @@ function renderDealsView() {
   for (const [item, obs] of Object.entries(byItem)) {
     const recent = obs.filter(o => (o.date||0) >= now - twoWeeks);
     if (recent.length < 3) continue;
-    const avg = recent.reduce((s,o)=>s+o.low,0) / recent.length;
-    const currentLow = Math.min(...recent.map(o => o.low));
-    const discount = ((avg - currentLow) / avg) * 100;
+    const avg = recent.reduce((s,o)=>s+getPrice(o),0) / recent.length;
+    const currentPrice = Math.min(...recent.map(o => getPrice(o)));
+    const discount = ((avg - currentPrice) / avg) * 100;
     if (discount >= 15) {
       const latest = recent.reduce((a,b) => (a.date||0) > (b.date||0) ? a : b);
-      deals.push({ item, currentLow, avg, discount, latest });
+      deals.push({ item, currentPrice, avg, discount, latest });
     }
   }
   deals.sort((a,b) => b.discount - a.discount);
@@ -1204,7 +1186,7 @@ function renderDealsView() {
       <div class="deal-row">
         <div class="deal-info">
           <div class="item-name"><a href="#" data-jump="${esc(d.item)}" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);">${esc(d.item)}</a></div>
-          <div class="deal-meta">Low: ${fmtNum(d.currentLow)} • Avg: ${fmtNum(d.avg)} • Source: ${esc(d.latest.location)} • By: ${esc(d.latest.loggedBy||'-')}</div>
+          <div class="deal-meta">Current: ${fmtNum(d.currentPrice)} • Avg: ${fmtNum(d.avg)} • Source: ${esc(d.latest.location)} • By: ${esc(d.latest.loggedBy||'-')}</div>
         </div>
         <div class="deal-pct">-${d.discount.toFixed(1)}%</div>
       </div>
@@ -1219,15 +1201,14 @@ function renderDealsView() {
     }));
   }
 
-  // Top movers
   const week = 7 * 86400000;
   const movers = [];
   for (const [item, obs] of Object.entries(byItem)) {
     const recent = obs.filter(o => (o.date||0) >= now - week);
     const prev = obs.filter(o => (o.date||0) >= now - 2*week && (o.date||0) < now - week);
     if (!recent.length || !prev.length) continue;
-    const rAvg = recent.reduce((s,o)=>s+o.low,0) / recent.length;
-    const pAvg = prev.reduce((s,o)=>s+o.low,0) / prev.length;
+    const rAvg = recent.reduce((s,o)=>s+getPrice(o),0) / recent.length;
+    const pAvg = prev.reduce((s,o)=>s+getPrice(o),0) / prev.length;
     movers.push({ item, change: ((rAvg - pAvg) / pAvg) * 100, rAvg, pAvg });
   }
   movers.sort((a,b) => b.change - a.change);
@@ -1256,9 +1237,6 @@ function renderDealsView() {
   });
 }
 
-// ============================================================
-// LEADERBOARD VIEW
-// ============================================================
 function renderLeaderboardView() {
   if (activeView !== 'leaderboard') return;
   const byUser = {};
@@ -1282,7 +1260,7 @@ function renderLeaderboardView() {
     ranks.map((r, i) => `
       <div class="lb-row rank-${i+1}">
         <div class="lb-rank">${medal(i+1)}</div>
-        <div><strong>${esc(r.name)}</strong>${i===0&&ADMIN_UIDS.length===0?'':' '}${r.lastDate ? `<div style="font-size:0.72rem;color:var(--text-light);">Last: ${fmtDateShort(r.lastDate)}</div>` : ''}</div>
+        <div><strong>${esc(r.name)}</strong>${r.lastDate ? `<div style="font-size:0.72rem;color:var(--text-light);">Last: ${fmtDateShort(r.lastDate)}</div>` : ''}</div>
         <div><strong>${r.count}</strong></div>
         <div>${r.uniqueItems}</div>
         <div>${r.activeDays}</div>
@@ -1290,9 +1268,6 @@ function renderLeaderboardView() {
     `).join('');
 }
 
-// ============================================================
-// ADMIN FUNCTIONS
-// ============================================================
 async function logAction(action, details = {}) {
   if (!isAdmin) return;
   try {
@@ -1304,6 +1279,7 @@ async function logAction(action, details = {}) {
     });
   } catch (err) { console.warn('Audit log failed:', err); }
 }
+
 async function softDelete(obs, reason = 'Manual delete') {
   const trashEntry = { ...obs, deletedAt: Date.now(), deletedBy: loggedByInput.value.trim() || currentUid, deletedReason: reason };
   const updates = {};
@@ -1311,6 +1287,7 @@ async function softDelete(obs, reason = 'Manual delete') {
   updates['observations/' + obs.id] = null;
   await update(ref(db), updates);
 }
+
 async function deleteObs(id) {
   if (!isAdmin) return showToast('Admin only.', 'error');
   const obs = observations.find(o => o.id === id);
@@ -1318,12 +1295,11 @@ async function deleteObs(id) {
   if (!confirm(`Soft-delete "${obs.item}"?\nRecoverable from Trash.`)) return;
   try {
     await softDelete(obs, 'Single delete');
-    await logAction('delete', { item: obs.item, low: obs.low, loggedBy: obs.loggedBy });
+    await logAction('delete', { item: obs.item, price: getPrice(obs), loggedBy: obs.loggedBy });
     showToast('Soft-deleted.', 'success');
   } catch (err) { showToast('Delete failed: ' + err.message, 'error'); }
 }
 
-// Edit observation modal
 function editObs(obs) {
   if (!isAdmin) return;
   const html = `
@@ -1338,8 +1314,8 @@ function editObs(obs) {
       </div>
     </div>
     <div class="row">
-      <div class="form-group"><label>Low Price</label><input type="number" id="editLow" value="${obs.low}" min="0" step="any"></div>
-      <div class="form-group"><label>High Price</label><input type="number" id="editHigh" value="${obs.high ?? ''}" min="0" step="any"></div>
+      <div class="form-group"><label>Price</label><input type="number" id="editPrice" value="${getPrice(obs)}" min="0" step="any"></div>
+      <div class="form-group"><label>Quantity</label><input type="number" id="editQty" value="${getQty(obs)}" min="1" step="1"></div>
     </div>
     <div class="form-group"><label>Notes</label><input type="text" id="editNotes" value="${esc(obs.notes||'')}" maxlength="200"></div>
     <div class="form-group"><label>Logged By</label><input type="text" id="editLoggedBy" value="${esc(obs.loggedBy||'')}"></div>
@@ -1355,24 +1331,23 @@ function editObs(obs) {
       item: $('editItem').value.trim(),
       location: $('editLocation').value,
       event: $('editEvent').value || null,
-      low: parseFloat($('editLow').value),
-      high: $('editHigh').value ? parseFloat($('editHigh').value) : null,
+      price: parseFloat($('editPrice').value),
+      qty: parseInt($('editQty').value, 10),
       notes: $('editNotes').value.trim() || null,
       loggedBy: $('editLoggedBy').value.trim(),
       lastEditedAt: Date.now(),
       lastEditedBy: loggedByInput.value.trim() || currentUid
     };
-    if (!newData.item || isNaN(newData.low)) return showToast('Item and low price required.', 'error');
+    if (!newData.item || isNaN(newData.price) || isNaN(newData.qty)) return showToast('Item, price, and qty required.', 'error');
     try {
       await update(ref(db, 'observations/' + obs.id), newData);
-      await logAction('edit', { item: newData.item, reason: $('editReason').value.trim() || 'no reason given', before: { item: obs.item, low: obs.low }, after: { item: newData.item, low: newData.low } });
+      await logAction('edit', { item: newData.item, reason: $('editReason').value.trim() || 'no reason given', before: { item: obs.item, price: getPrice(obs), qty: getQty(obs) }, after: { item: newData.item, price: newData.price, qty: newData.qty } });
       showToast('Updated.', 'success');
       closeModal();
     } catch (err) { showToast('Edit failed: ' + err.message, 'error'); }
   };
 }
 
-// Backup list
 const BACKUP_BASE = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/backups/`;
 async function loadBackupsList() {
   const container = $('backupsList');
@@ -1406,7 +1381,7 @@ async function previewRestore(filename) {
     const willChange = Object.entries(backup).filter(([id, data]) => {
       const cur = observations.find(o => o.id === id);
       if (!cur) return false;
-      return cur.low !== data.low || cur.item !== data.item || cur.location !== data.location;
+      return getPrice(cur) !== getPrice(data) || cur.item !== data.item || cur.location !== data.location;
     }).map(([id, data]) => ({ id, data, cur: observations.find(o => o.id === id) }));
 
     const previewHtml = `
@@ -1418,9 +1393,9 @@ async function previewRestore(filename) {
         <div class="stat-box"><div class="value" style="color:var(--success);">${willAdd.length}</div><div class="label">Will be re-added</div></div>
         <div class="stat-box"><div class="value" style="color:var(--warning);">${willChange.length}</div><div class="label">Will be changed</div></div>
       </div>
-      ${willRemove.length ? `<details style="margin-top:10px;"><summary>Will remove (${willRemove.length})</summary><div class="diff-box"><ul>${willRemove.slice(0,20).map(o => `<li class="diff-remove">${esc(o.item)} @ ${fmtNum(o.low)} (${esc(o.loggedBy||'-')})</li>`).join('')}${willRemove.length>20?`<li>... and ${willRemove.length-20} more</li>`:''}</ul></div></details>` : ''}
-      ${willAdd.length ? `<details style="margin-top:10px;"><summary>Will add back (${willAdd.length})</summary><div class="diff-box"><ul>${willAdd.slice(0,20).map(o => `<li class="diff-add">${esc(o.item)} @ ${fmtNum(o.low)} (${esc(o.loggedBy||'-')})</li>`).join('')}${willAdd.length>20?`<li>... and ${willAdd.length-20} more</li>`:''}</ul></div></details>` : ''}
-      ${willChange.length ? `<details style="margin-top:10px;"><summary>Will change (${willChange.length})</summary><div class="diff-box"><ul>${willChange.slice(0,20).map(x => `<li class="diff-change">${esc(x.data.item)}: ${fmtNum(x.cur.low)} → ${fmtNum(x.data.low)}</li>`).join('')}${willChange.length>20?`<li>... and ${willChange.length-20} more</li>`:''}</ul></div></details>` : ''}
+      ${willRemove.length ? `<details style="margin-top:10px;"><summary>Will remove (${willRemove.length})</summary><div class="diff-box"><ul>${willRemove.slice(0,20).map(o => `<li class="diff-remove">${esc(o.item)} @ ${fmtNum(getPrice(o))} (${esc(o.loggedBy||'-')})</li>`).join('')}${willRemove.length>20?`<li>... and ${willRemove.length-20} more</li>`:''}</ul></div></details>` : ''}
+      ${willAdd.length ? `<details style="margin-top:10px;"><summary>Will add back (${willAdd.length})</summary><div class="diff-box"><ul>${willAdd.slice(0,20).map(o => `<li class="diff-add">${esc(o.item)} @ ${fmtNum(getPrice(o))} (${esc(o.loggedBy||'-')})</li>`).join('')}${willAdd.length>20?`<li>... and ${willAdd.length-20} more</li>`:''}</ul></div></details>` : ''}
+      ${willChange.length ? `<details style="margin-top:10px;"><summary>Will change (${willChange.length})</summary><div class="diff-box"><ul>${willChange.slice(0,20).map(x => `<li class="diff-change">${esc(x.data.item)}: ${fmtNum(getPrice(x.cur))} → ${fmtNum(getPrice(x.data))}</li>`).join('')}${willChange.length>20?`<li>... and ${willChange.length-20} more</li>`:''}</ul></div></details>` : ''}
       <div class="banner warn" style="margin-top:12px;">⚠️ This will DELETE ALL current observations and replace with the backup. Cannot be undone.</div>
       <div class="modal-actions">
         <button class="secondary" onclick="window.__closeModal()">Cancel</button>
@@ -1448,7 +1423,6 @@ async function previewRestore(filename) {
   } catch (err) { showToast('Preview failed: ' + err.message, 'error'); }
 }
 
-// Bulk delete
 $('previewDeleteBtn').addEventListener('click', () => {
   if (!isAdmin) return;
   const username = $('delUsername').value.trim().toLowerCase();
@@ -1467,7 +1441,7 @@ $('previewDeleteBtn').addEventListener('click', () => {
   const box = $('deletePreview');
   box.style.display = 'block';
   if (!matches.length) { box.innerHTML = '<p>No matches.</p>'; $('executeDeleteBtn').disabled = true; return; }
-  box.innerHTML = `<p><strong>${matches.length} observations match.</strong></p><table style="margin-top:8px;font-size:0.78rem;"><thead><tr><th>Date</th><th>Item</th><th>Source</th><th>Low</th><th>By</th></tr></thead><tbody>${matches.slice(0,100).map(o => `<tr><td>${fmtDate(o.date)}</td><td>${esc(o.item)}</td><td>${esc(o.location)}</td><td>${fmtNum(o.low)}</td><td>${esc(o.loggedBy||'-')}</td></tr>`).join('')}</tbody></table>${matches.length>100?`<p style="margin-top:6px;">... and ${matches.length-100} more.</p>`:''}`;
+  box.innerHTML = `<p><strong>${matches.length} observations match.</strong></p><table style="margin-top:8px;font-size:0.78rem;"><thead><tr><th>Date</th><th>Item</th><th>Source</th><th>Price</th><th>Qty</th><th>By</th></tr></thead><tbody>${matches.slice(0,100).map(o => `<tr><td>${fmtDate(o.date)}</td><td>${esc(o.item)}</td><td>${esc(o.location)}</td><td>${fmtNum(getPrice(o))}</td><td>${getQty(o)}</td><td>${esc(o.loggedBy||'-')}</td></tr>`).join('')}</tbody></table>${matches.length>100?`<p style="margin-top:6px;">... and ${matches.length-100} more.</p>`:''}`;
   $('executeDeleteBtn').disabled = false;
 });
 $('executeDeleteBtn').addEventListener('click', async () => {
@@ -1489,7 +1463,6 @@ $('executeDeleteBtn').addEventListener('click', async () => {
   } catch (err) { showToast('Delete failed: ' + err.message, 'error'); }
 });
 
-// Merge items
 function refreshMergeDropdowns() {
   const items = getUniqueItems();
   ['mergeSource','mergeTarget'].forEach(id => {
@@ -1498,7 +1471,6 @@ function refreshMergeDropdowns() {
     el.innerHTML = '<option value="">-- Choose --</option>' + items.map(it => `<option value="${esc(it)}">${esc(it)}</option>`).join('');
     if (items.includes(cur)) el.value = cur;
   });
-  // Detect similar pairs
   const dupes = [];
   for (let i = 0; i < items.length; i++) for (let j = i+1; j < items.length; j++) {
     const d = levenshtein(normalize(items[i]), normalize(items[j]));
@@ -1533,7 +1505,6 @@ $('mergeBtn').addEventListener('click', async () => {
   } catch (err) { showToast('Merge failed: ' + err.message, 'error'); }
 });
 
-// Trash
 async function restoreFromTrash(id) {
   const item = trash.find(t => t.id === id);
   if (!item) return;
@@ -1542,7 +1513,7 @@ async function restoreFromTrash(id) {
     const { deletedAt, deletedBy, deletedReason, ...obsData } = item;
     await set(ref(db, 'observations/' + id), obsData);
     await remove(ref(db, 'trash/' + id));
-    await logAction('restore_item', { item: item.item, low: item.low });
+    await logAction('restore_item', { item: item.item, price: getPrice(item) });
     showToast('Restored.', 'success');
   } catch (err) { showToast('Restore failed: ' + err.message, 'error'); }
 }
@@ -1567,8 +1538,6 @@ $('emptyTrashBtn').addEventListener('click', async () => {
   } catch (err) { showToast('Failed: ' + err.message, 'error'); }
 });
 $('refreshTrashBtn').addEventListener('click', () => renderAdminView());
-
-// Audit log
 $('refreshAuditBtn').addEventListener('click', () => renderAdminView());
 $('clearAuditBtn').addEventListener('click', async () => {
   if (!isAdmin) return;
@@ -1577,7 +1546,6 @@ $('clearAuditBtn').addEventListener('click', async () => {
   catch (err) { showToast('Failed: ' + err.message, 'error'); }
 });
 
-// Read-only toggle
 $('readOnlyToggle').addEventListener('change', async e => {
   if (!isAdmin) return;
   const val = e.target.checked;
@@ -1587,25 +1555,19 @@ $('readOnlyToggle').addEventListener('change', async e => {
     showToast(`Read-only mode ${val ? 'ENABLED' : 'disabled'}.`, 'success');
   } catch (err) { showToast('Failed: ' + err.message, 'error'); }
 });
-
 $('refreshBackupsBtn').addEventListener('click', loadBackupsList);
 
-// ============================================================
-// ADMIN RENDER
-// ============================================================
 function renderAdminView() {
   if (!isAdmin || activeView !== 'admin') return;
-  // Backups auto-load
   if ($('backupsList').querySelector('.empty-state') && $('backupsList').querySelector('.empty-state').textContent === 'Loading...') loadBackupsList();
   refreshMergeDropdowns();
 
-  // Trash
   const trashEl = $('trashList');
   if (!trash.length) trashEl.innerHTML = '<p class="empty-state">Trash is empty.</p>';
   else trashEl.innerHTML = trash.map(t => `
     <div class="trash-item">
       <div>
-        <strong>${esc(t.item)}</strong> — ${fmtNum(t.low)}${t.high ? ` / ${fmtNum(t.high)}` : ''} <span style="color:var(--text-light);">(${esc(t.location)})</span>
+        <strong>${esc(t.item)}</strong> — ${fmtNum(getPrice(t))} (x${getQty(t)}) <span style="color:var(--text-light);">(${esc(t.location)})</span>
         <div class="meta">Deleted by ${esc(t.deletedBy||'?')} • ${fmtDate(t.deletedAt)} • ${esc(t.deletedReason||'')}</div>
       </div>
       <div style="display:flex;gap:6px;">
@@ -1617,7 +1579,6 @@ function renderAdminView() {
   trashEl.querySelectorAll('button[data-restore]').forEach(b => b.addEventListener('click', () => restoreFromTrash(b.dataset.restore)));
   trashEl.querySelectorAll('button[data-perm-del]').forEach(b => b.addEventListener('click', () => permanentDelete(b.dataset.permDel)));
 
-  // Audit log
   const auditEl = $('auditList');
   if (!auditLog.length) auditEl.innerHTML = '<p class="empty-state">No actions yet.</p>';
   else auditEl.innerHTML = auditLog.slice(0, 200).map(a => `
@@ -1630,9 +1591,6 @@ function renderAdminView() {
   `).join('');
 }
 
-// ============================================================
-// MODAL SYSTEM
-// ============================================================
 function openModal(html) {
   $('modalContent').innerHTML = html;
   $('modal-root').classList.add('open');
@@ -1646,19 +1604,15 @@ document.querySelector('#modal-root .modal-backdrop').addEventListener('click', 
   if (e.target.classList.contains('modal-backdrop')) closeModal();
 });
 
-// ============================================================
-// RENDER ALL
-// ============================================================
 function renderAll() {
   if (activeView === 'prices') renderPricesView();
   else if (activeView === 'analytics') renderAnalyticsView();
   else if (activeView === 'deals') renderDealsView();
   else if (activeView === 'leaderboard') renderLeaderboardView();
   else if (activeView === 'admin') renderAdminView();
-  if (activeView !== 'prices') renderWatchlist(); // watchlist lives in prices view
+  if (activeView !== 'prices') renderWatchlist();
 }
 
-// Initial render
 renderPricesView();
 </script>
 </body>
