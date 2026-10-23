@@ -475,8 +475,9 @@ const firebaseConfig = {
   appId: "1:626375846747:web:93828097de8e6c08f0887e"
 };
 
+// 🛑 PASTE YOUR UID HERE
 const ADMIN_UIDS = [
-  // 'PASTE-YOUR-UID-HERE',
+  // 'FxhzC0FatfVSLUs7VPsO4qSx73B2',
 ];
 
 const GITHUB_REPO = 'mitchelI/lc';
@@ -508,7 +509,6 @@ const itemSuggest = $('itemSuggest');
 const loggedByInput = $('loggedBy');
 const toastEl = $('toast');
 
-// Helper to get price whether it's old data (low) or new data (price)
 function getPrice(o) { return typeof o.price === 'number' ? o.price : (o.low || 0); }
 function getQty(o) { return typeof o.qty === 'number' ? o.qty : 1; }
 
@@ -694,9 +694,15 @@ function subscribeAdmin() {
 function updateAdminUI() {
   $('adminTabBtn').style.display = isAdmin ? 'inline-block' : 'none';
   if (isAdmin) { subscribeAdmin(); renderAdminView(); }
-  if (!isAdmin && ADMIN_UIDS.length === 0 && currentUid) {
+  
+  // DEBUG: Always show UID if not admin so they can copy it
+  if (!isAdmin && currentUid) {
     $('authError').style.display = 'block';
-    $('authError').innerHTML = '<strong>🛡️ Admin setup:</strong> Your UID is <code>' + esc(currentUid) + '</code>. Add to <code>ADMIN_UIDS</code> and <code>admins</code> node.';
+    $('authError').innerHTML = `<strong>🛡️ Admin Setup:</strong> You are not recognized as an admin.<br><br>
+      1. Your exact Firebase UID is: <code style="font-size:1.1em;font-weight:bold;padding:4px 8px;background:rgba(0,0,0,0.1);border-radius:4px;">${esc(currentUid)}</code><br><br>
+      2. Paste this UID into the <code>ADMIN_UIDS</code> array inside your HTML file.<br>
+      3. Add it in the Firebase Database under <code>admins</code> -> <code>${esc(currentUid)}: true</code>.<br>
+      4. Refresh the page.`;
   }
 }
 
