@@ -1,686 +1,528 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Last Chaos Guild Price Tracker</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        :root {
-            --bg: #f4f6f9;
-            --card-bg: #ffffff;
-            --primary: #2563eb;
-            --primary-hover: #1d4ed8;
-            --text: #1e293b;
-            --text-light: #64748b;
-            --border: #e2e8f0;
-            --success: #16a34a;
-            --danger: #dc2626;
-            --warning: #d97706;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.6;
-            padding: 20px;
-        }
-        .container { max-width: 1200px; margin: 0 auto; }
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        header h1 {
-            font-size: 2rem;
-            color: var(--primary);
-            margin-bottom: 5px;
-        }
-        header p { color: var(--text-light); }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-        @media (max-width: 768px) {
-            .grid { grid-template-columns: 1fr; }
-        }
-        .card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            padding: 20px;
-            border: 1px solid var(--border);
-        }
-        .card h2 {
-            font-size: 1.25rem;
-            margin-bottom: 15px;
-            color: var(--primary);
-            border-bottom: 2px solid var(--border);
-            padding-bottom: 8px;
-        }
-        .form-group {
-            margin-bottom: 12px;
-        }
-        label {
-            display: block;
-            font-weight: 600;
-            font-size: 0.9rem;
-            margin-bottom: 4px;
-        }
-        input, select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            font-size: 0.95rem;
-            outline: none;
-            transition: border 0.2s;
-        }
-        input:focus, select:focus { border-color: var(--primary); }
-        .row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-        button {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-            width: 100%;
-            margin-top: 10px;
-        }
-        button:hover { background: var(--primary-hover); }
-        button.secondary {
-            background: var(--text-light);
-            margin-top: 5px;
-        }
-        button.secondary:hover { background: #475569; }
-        button.danger { background: var(--danger); }
-        button.danger:hover { background: #b91c1c; }
-        .btn-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        .btn-group button { flex: 1; }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        th, td {
-            text-align: left;
-            padding: 8px 6px;
-            border-bottom: 1px solid var(--border);
-        }
-        th {
-            background: #f8fafc;
-            font-weight: 600;
-            color: var(--text-light);
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.05em;
-        }
-        tr:hover { background: #f8fafc; }
-        .badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .badge-merchant { background: #dbeafe; color: #1e40af; }
-        .badge-trader { background: #fef3c7; color: #92400e; }
-        .badge-event { background: #f3e8ff; color: #6b21a8; }
-        .empty-state {
-            text-align: center;
-            color: var(--text-light);
-            padding: 20px;
-            font-style: italic;
-        }
-        .chart-container {
-            position: relative;
-            height: 300px;
-            width: 100%;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        .stat-box {
-            background: #f8fafc;
-            padding: 12px;
-            border-radius: 8px;
-            text-align: center;
-        }
-        .stat-box .value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--primary);
-        }
-        .stat-box .label {
-            font-size: 0.8rem;
-            color: var(--text-light);
-        }
-        .filter-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-            flex-wrap: wrap;
-        }
-        .filter-row input, .filter-row select {
-            flex: 1;
-            min-width: 150px;
-        }
-        .scrollable {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            color: var(--text-light);
-            font-size: 0.85rem;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Last Chaos Guild Price Tracker — Live</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg:#f4f6f9; --card-bg:#fff; --primary:#2563eb; --primary-hover:#1d4ed8;
+    --text:#1e293b; --text-light:#64748b; --border:#e2e8f0;
+    --success:#16a34a; --danger:#dc2626; --warning:#d97706;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; padding:20px; }
+  .container { max-width:1200px; margin:0 auto; }
+  header { text-align:center; margin-bottom:20px; }
+  header h1 { font-size:2rem; color:var(--primary); margin-bottom:5px; }
+  header p { color:var(--text-light); }
+  .conn { display:inline-block; padding:3px 10px; border-radius:9999px; font-size:0.8rem; font-weight:600; margin-top:6px; }
+  .conn.live { background:#dcfce7; color:#166534; }
+  .conn.offline { background:#fee2e2; color:#991b1b; }
+  .conn.pending { background:#fef3c7; color:#92400e; }
+  .banner { padding:14px 18px; border-radius:8px; margin-bottom:20px; font-size:0.95rem; }
+  .banner.error { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px; }
+  @media (max-width:768px){ .grid { grid-template-columns:1fr; } }
+  .card { background:var(--card-bg); border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.1); padding:20px; border:1px solid var(--border); }
+  .card h2 { font-size:1.25rem; margin-bottom:15px; color:var(--primary); border-bottom:2px solid var(--border); padding-bottom:8px; }
+  .form-group { margin-bottom:12px; }
+  label { display:block; font-weight:600; font-size:0.9rem; margin-bottom:4px; }
+  input,select { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; outline:none; transition:border .2s; background:#fff; }
+  input:focus,select:focus { border-color:var(--primary); }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  button { background:var(--primary); color:#fff; border:none; padding:10px 20px; border-radius:6px; font-size:1rem; font-weight:600; cursor:pointer; transition:background .2s; width:100%; margin-top:10px; }
+  button:hover { background:var(--primary-hover); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  button.secondary { background:var(--text-light); margin-top:5px; }
+  button.secondary:hover { background:#475569; }
+  button.danger { background:var(--danger); }
+  button.danger:hover { background:#b91c1c; }
+  .btn-group { display:flex; gap:10px; margin-top:10px; }
+  .btn-group button { flex:1; }
+  table { width:100%; border-collapse:collapse; font-size:0.9rem; }
+  th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--border); }
+  th { background:#f8fafc; font-weight:600; color:var(--text-light); text-transform:uppercase; font-size:0.75rem; letter-spacing:.05em; }
+  tr:hover { background:#f8fafc; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:0.75rem; font-weight:600; }
+  .badge-merchant { background:#dbeafe; color:#1e40af; }
+  .badge-trader { background:#fef3c7; color:#92400e; }
+  .badge-event { background:#f3e8ff; color:#6b21a8; }
+  .empty-state { text-align:center; color:var(--text-light); padding:20px; font-style:italic; }
+  .chart-container { position:relative; height:300px; width:100%; }
+  .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:15px; }
+  .stat-box { background:#f8fafc; padding:12px; border-radius:8px; text-align:center; }
+  .stat-box .value { font-size:1.5rem; font-weight:700; color:var(--primary); }
+  .stat-box .label { font-size:0.8rem; color:var(--text-light); }
+  .filter-row { display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  .filter-row input,.filter-row select { flex:1; min-width:150px; }
+  .scrollable { max-height:480px; overflow-y:auto; }
+  .footer { text-align:center; margin-top:30px; color:var(--text-light); font-size:0.85rem; }
+  .toast { position:fixed; bottom:20px; right:20px; background:#1e293b; color:#fff; padding:12px 18px; border-radius:8px; font-size:0.9rem; opacity:0; transform:translateY(10px); transition:all .25s; pointer-events:none; z-index:1000; }
+  .toast.show { opacity:1; transform:translateY(0); }
+  .toast.error { background:var(--danger); }
+  .toast.success { background:var(--success); }
+  .data-hint { font-size:0.8rem; color:var(--text-light); margin-top:6px; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>⚔️ Last Chaos Guild Price Tracker</h1>
-            <p>Log prices from merchants & Trader Roy • Track events • Make informed trades</p>
-        </header>
+<div class="container">
+  <header>
+    <h1>⚔️ Last Chaos Guild Price Tracker</h1>
+    <p>Live shared market data • Every guildie sees updates instantly</p>
+    <span id="connBadge" class="conn pending">⏳ Connecting…</span>
+  </header>
 
-        <!-- Input Form -->
-        <div class="card" style="margin-bottom: 20px;">
-            <h2>➕ Log a New Price Observation</h2>
-            <form id="priceForm">
-                <div class="row">
-                    <div class="form-group">
-                        <label for="itemName">Item Name *</label>
-                        <input type="text" id="itemName" required placeholder="e.g., Heaven Stone">
-                    </div>
-                    <div class="form-group">
-                        <label for="location">Source / Location *</label>
-                        <select id="location" required>
-                            <option value="">-- Select --</option>
-                            <option value="Merchant">Merchant</option>
-                            <option value="Trader Roy">Trader Roy</option>
-                            <option value="Auction House">Auction House</option>
-                            <option value="Player Trade">Player Trade</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="form-group">
-                        <label for="lowPrice">Lowest Price Seen *</label>
-                        <input type="number" id="lowPrice" required min="0" step="any" placeholder="e.g., 2100000">
-                    </div>
-                    <div class="form-group">
-                        <label for="highPrice">Highest Price Seen</label>
-                        <input type="number" id="highPrice" min="0" step="any" placeholder="Optional">
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="form-group">
-                        <label for="event">Event (optional)</label>
-                        <select id="event">
-                            <option value="">None</option>
-                            <option value="Double Drop">Double Drop</option>
-                            <option value="EXP Boost">EXP Boost</option>
-                            <option value="Upgrade Event">Upgrade Event</option>
-                            <option value="Jewel Event">Jewel Event</option>
-                            <option value="Plus Event">Plus Event</option>
-                            <option value="Seasonal Event">Seasonal Event</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="notes">Notes</label>
-                        <input type="text" id="notes" placeholder="Optional notes...">
-                    </div>
-                </div>
-                <div class="btn-group">
-                    <button type="submit">💾 Save Observation</button>
-                </div>
-            </form>
+  <div id="configError" class="banner error" style="display:none;">
+    <strong>⚠️ Setup required:</strong> Firebase is not configured correctly.
+  </div>
+  <div id="authError" class="banner error" style="display:none;"></div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <h2>➕ Log a New Price Observation</h2>
+    <form id="priceForm">
+      <div class="row">
+        <div class="form-group">
+          <label for="itemName">Item Name *</label>
+          <input type="text" id="itemName" required placeholder="e.g., Heaven Stone" list="itemDatalist" autocomplete="off">
+          <datalist id="itemDatalist"></datalist>
         </div>
-
-        <!-- Dashboard Grid -->
-        <div class="grid">
-            <!-- Price History Table -->
-            <div class="card">
-                <h2>📋 Price Observations</h2>
-                <div class="filter-row">
-                    <input type="text" id="searchInput" placeholder="🔍 Search items...">
-                    <select id="sourceFilter">
-                        <option value="">All Sources</option>
-                        <option value="Merchant">Merchant</option>
-                        <option value="Trader Roy">Trader Roy</option>
-                        <option value="Auction House">Auction House</option>
-                        <option value="Player Trade">Player Trade</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-                <div class="scrollable">
-                    <table id="priceTable">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Item</th>
-                                <th>Source</th>
-                                <th>Low</th>
-                                <th>High</th>
-                                <th>Event</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="priceTableBody"></tbody>
-                    </table>
-                </div>
-                <p id="noDataMsg" class="empty-state">No price observations logged yet.</p>
-            </div>
-
-            <!-- Analytics -->
-            <div class="card">
-                <h2>📊 Market Analytics</h2>
-                <div class="form-group">
-                    <label for="analyticsItem">Select Item for Analysis</label>
-                    <select id="analyticsItem">
-                        <option value="">-- Choose an item --</option>
-                    </select>
-                </div>
-                <div class="stats-grid" id="statsGrid">
-                    <div class="stat-box">
-                        <div class="value" id="avgLow">-</div>
-                        <div class="label">Avg. Low Price</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="value" id="avgHigh">-</div>
-                        <div class="label">Avg. High Price</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="value" id="minPrice">-</div>
-                        <div class="label">All-Time Low</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="value" id="maxPrice">-</div>
-                        <div class="label">All-Time High</div>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <canvas id="priceChart"></canvas>
-                </div>
-            </div>
+        <div class="form-group">
+          <label for="location">Source / Location *</label>
+          <select id="location" required>
+            <option value="">-- Select --</option>
+            <option value="Merchant">Merchant</option>
+            <option value="Trader Roy">Trader Roy</option>
+            <option value="Auction House">Auction House</option>
+            <option value="Player Trade">Player Trade</option>
+            <option value="Other">Other</option>
+          </select>
         </div>
-
-        <!-- Data Management -->
-        <div class="card" style="margin-top: 20px;">
-            <h2>💾 Data Management</h2>
-            <p style="color: var(--text-light); margin-bottom: 10px; font-size: 0.9rem;">
-                Data is stored locally in your browser. Export regularly to share with guildies or to back up your data.
-            </p>
-            <div class="btn-group">
-                <button id="exportBtn" class="secondary">📤 Export Data (JSON)</button>
-                <button id="importBtn" class="secondary">📥 Import Data</button>
-                <button id="clearBtn" class="danger">🗑️ Clear All Data</button>
-            </div>
-            <input type="file" id="importFile" accept=".json" style="display: none;">
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label for="lowPrice">Lowest Price Seen *</label>
+          <input type="number" id="lowPrice" required min="0" step="any" placeholder="e.g., 2100000">
         </div>
-
-        <div class="footer">
-            Last Chaos Guild Price Tracker — Open Source • Hosted on GitHub Pages / Netlify • Data stored locally
+        <div class="form-group">
+          <label for="highPrice">Highest Price Seen</label>
+          <input type="number" id="highPrice" min="0" step="any" placeholder="Optional">
         </div>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label for="event">Event (optional)</label>
+          <select id="event">
+            <option value="">None</option>
+            <option value="Double Drop">Double Drop</option>
+            <option value="EXP Boost">EXP Boost</option>
+            <option value="Upgrade Event">Upgrade Event</option>
+            <option value="Jewel Event">Jewel Event</option>
+            <option value="Plus Event">Plus Event</option>
+            <option value="Seasonal Event">Seasonal Event</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="notes">Notes</label>
+          <input type="text" id="notes" maxlength="200" placeholder="Optional notes...">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="loggedBy">Your Guild Name *</label>
+        <input type="text" id="loggedBy" required maxlength="40" placeholder="e.g., Aeryn">
+      </div>
+      <div class="btn-group">
+        <button type="submit" id="submitBtn">💾 Save Observation</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>📋 Price Observations <span id="obsCount" style="font-size:0.9rem;color:var(--text-light);font-weight:normal;"></span></h2>
+      <div class="filter-row">
+        <input type="text" id="searchInput" placeholder="🔍 Search items or loggers...">
+        <select id="sourceFilter">
+          <option value="">All Sources</option>
+          <option value="Merchant">Merchant</option>
+          <option value="Trader Roy">Trader Roy</option>
+          <option value="Auction House">Auction House</option>
+          <option value="Player Trade">Player Trade</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="scrollable">
+        <table id="priceTable">
+          <thead>
+            <tr>
+              <th>Date</th><th>Item</th><th>Source</th><th>Low</th><th>High</th><th>Event</th><th>By</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="priceTableBody"></tbody>
+        </table>
+      </div>
+      <p id="noDataMsg" class="empty-state">No price observations logged yet.</p>
     </div>
 
-    <script>
-        // ========================
-        // DATA LAYER (localStorage)
-        // ========================
-        const STORAGE_KEY = 'lc_guild_price_tracker';
+    <div class="card">
+      <h2>📊 Market Analytics</h2>
+      <div class="form-group">
+        <label for="analyticsItem">Select Item for Analysis</label>
+        <select id="analyticsItem"><option value="">-- Choose an item --</option></select>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="value" id="avgLow">-</div><div class="label">Avg. Low Price</div></div>
+        <div class="stat-box"><div class="value" id="avgHigh">-</div><div class="label">Avg. High Price</div></div>
+        <div class="stat-box"><div class="value" id="minPrice">-</div><div class="label">All-Time Low</div></div>
+        <div class="stat-box"><div class="value" id="maxPrice">-</div><div class="label">All-Time High</div></div>
+      </div>
+      <div class="chart-container"><canvas id="priceChart"></canvas></div>
+    </div>
+  </div>
 
-        function loadData() {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            return raw ? JSON.parse(raw) : [];
-        }
+  <div class="card" style="margin-top:20px;">
+    <h2>💾 Backup & Management</h2>
+    <p class="data-hint">Data is live and shared. Export is only for backups. "Clear All" deletes everyone's data — type DELETE ALL to confirm.</p>
+    <div class="btn-group">
+      <button id="exportBtn" class="secondary">📤 Export Backup (JSON)</button>
+      <button id="clearBtn" class="danger">🗑️ Clear All Shared Data</button>
+    </div>
+  </div>
 
-        function saveData(data) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        }
+  <div class="footer">
+    Last Chaos Guild Price Tracker — Live • Powered by Firebase Realtime Database
+  </div>
+</div>
 
-        let observations = loadData();
+<div id="toast" class="toast"></div>
 
-        // ========================
-        // DOM REFERENCES
-        // ========================
-        const form = document.getElementById('priceForm');
-        const tableBody = document.getElementById('priceTableBody');
-        const noDataMsg = document.getElementById('noDataMsg');
-        const searchInput = document.getElementById('searchInput');
-        const sourceFilter = document.getElementById('sourceFilter');
-        const analyticsItem = document.getElementById('analyticsItem');
-        const avgLow = document.getElementById('avgLow');
-        const avgHigh = document.getElementById('avgHigh');
-        const minPrice = document.getElementById('minPrice');
-        const maxPrice = document.getElementById('maxPrice');
-        const exportBtn = document.getElementById('exportBtn');
-        const importBtn = document.getElementById('importBtn');
-        const importFile = document.getElementById('importFile');
-        const clearBtn = document.getElementById('clearBtn');
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, push, remove, onValue, serverTimestamp, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-        let chartInstance = null;
+// ============================================================
+// ⚙️ YOUR FIREBASE CONFIG
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyDgEmH0iupFOudGR1LfyRNwjMocYb1Xmog",
+  authDomain: "last-chaos-2387e.firebaseapp.com",
+  databaseURL: "https://last-chaos-2387e-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "last-chaos-2387e",
+  storageBucket: "last-chaos-2387e.firebasestorage.app",
+  messagingSenderId: "626375846747",
+  appId: "1:626375846747:web:93828097de8e6c08f0887e"
+};
+// ============================================================
 
-        // ========================
-        // UTILITY FUNCTIONS
-        // ========================
-        function formatNumber(num) {
-            if (num === null || num === undefined || isNaN(num)) return '-';
-            return Number(num).toLocaleString(undefined, { maximumFractionDigits: 2 });
-        }
+let observations = [];
+let chartInstance = null;
+let db, auth;
 
-        function formatDate(iso) {
-            const d = new Date(iso);
-            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
+const form = document.getElementById('priceForm');
+const submitBtn = document.getElementById('submitBtn');
+const itemDatalist = document.getElementById('itemDatalist');
+const loggedByInput = document.getElementById('loggedBy');
+const tableBody = document.getElementById('priceTableBody');
+const noDataMsg = document.getElementById('noDataMsg');
+const searchInput = document.getElementById('searchInput');
+const sourceFilter = document.getElementById('sourceFilter');
+const analyticsItem = document.getElementById('analyticsItem');
+const avgLowEl = document.getElementById('avgLow');
+const avgHighEl = document.getElementById('avgHigh');
+const minPriceEl = document.getElementById('minPrice');
+const maxPriceEl = document.getElementById('maxPrice');
+const exportBtn = document.getElementById('exportBtn');
+const clearBtn = document.getElementById('clearBtn');
+const connBadge = document.getElementById('connBadge');
+const obsCountEl = document.getElementById('obsCount');
+const toastEl = document.getElementById('toast');
 
-        // ========================
-        // CRUD OPERATIONS
-        // ========================
-        form.addEventListener('submit', function (e) {
-            e.preventDefault();
+function showToast(msg, type = '') {
+  toastEl.textContent = msg;
+  toastEl.className = 'toast show ' + type;
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => { toastEl.className = 'toast ' + type; }, 3000);
+}
+function formatNumber(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+function formatDate(v) {
+  if (!v) return '-';
+  const d = new Date(v);
+  if (isNaN(d)) return '-';
+  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+function escapeHtml(t) {
+  const d = document.createElement('div');
+  d.textContent = t == null ? '' : String(t);
+  return d.innerHTML;
+}
+function setConnection(state) {
+  connBadge.className = 'conn ' + state;
+  connBadge.textContent = state === 'live' ? '🟢 Live — updates in real time'
+    : state === 'offline' ? '🔴 Offline — reconnecting…'
+    : '⏳ Connecting…';
+}
 
-            const item = document.getElementById('itemName').value.trim();
-            const location = document.getElementById('location').value;
-            const low = parseFloat(document.getElementById('lowPrice').value);
-            const highRaw = document.getElementById('highPrice').value;
-            const high = highRaw ? parseFloat(highRaw) : null;
-            const event = document.getElementById('event').value;
-            const notes = document.getElementById('notes').value.trim();
+// ---- Firebase init ----
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getDatabase(app);
+  auth = getAuth(app);
+  bootRealtime();
+} catch (err) {
+  document.getElementById('authError').style.display = 'block';
+  document.getElementById('authError').textContent = 'Firebase init failed: ' + err.message;
+  setConnection('offline');
+}
 
-            if (!item || !location || isNaN(low)) {
-                alert('Please fill in all required fields (Item, Source, Lowest Price).');
-                return;
-            }
+async function bootRealtime() {
+  try {
+    await signInAnonymously(auth);
+  } catch (err) {
+    document.getElementById('authError').style.display = 'block';
+    document.getElementById('authError').innerHTML =
+      '<strong>Auth failed:</strong> ' + escapeHtml(err.message) +
+      '<br>Make sure <b>Anonymous sign-in</b> is enabled in Firebase Console → Authentication → Sign-in method.';
+    setConnection('offline');
+    return;
+  }
 
-            const newObs = {
-                id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
-                date: new Date().toISOString(),
-                item: item,
-                location: location,
-                low: low,
-                high: high,
-                event: event,
-                notes: notes
-            };
+  onValue(ref(db, '.info/connected'), snap => {
+    setConnection(snap.val() === true ? 'live' : 'offline');
+  });
 
-            observations.push(newObs);
-            saveData(observations);
+  onValue(ref(db, 'observations'), snapshot => {
+    const val = snapshot.val() || {};
+    observations = Object.entries(val)
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => (b.date || 0) - (a.date || 0));
+    renderAll();
+  }, err => {
+    showToast('Read failed: ' + err.message, 'error');
+  });
+}
 
-            form.reset();
-            renderAll();
-        });
+// ---- Restore logger name ----
+const savedName = localStorage.getItem('lc_guild_logger_name');
+if (savedName) loggedByInput.value = savedName;
+loggedByInput.addEventListener('change', () => {
+  localStorage.setItem('lc_guild_logger_name', loggedByInput.value.trim());
+});
 
-        function deleteObservation(id) {
-            if (!confirm('Delete this observation?')) return;
-            observations = observations.filter(o => o.id !== id);
-            saveData(observations);
-            renderAll();
-        }
+// ---- Submit ----
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!db) { showToast('Not connected to database.', 'error'); return; }
 
-        // ========================
-        // RENDERING
-        // ========================
-        function renderTable() {
-            const search = searchInput.value.toLowerCase();
-            const source = sourceFilter.value;
+  const item = document.getElementById('itemName').value.trim();
+  const location = document.getElementById('location').value;
+  const low = parseFloat(document.getElementById('lowPrice').value);
+  const highRaw = document.getElementById('highPrice').value;
+  const high = highRaw ? parseFloat(highRaw) : null;
+  const event = document.getElementById('event').value;
+  const notes = document.getElementById('notes').value.trim();
+  const loggedBy = loggedByInput.value.trim();
 
-            const filtered = observations
-                .filter(o => {
-                    const matchSearch = o.item.toLowerCase().includes(search);
-                    const matchSource = !source || o.location === source;
-                    return matchSearch && matchSource;
-                })
-                .sort((a, b) => new Date(b.date) - new Date(a.date));
+  if (!item || !location || isNaN(low) || !loggedBy) {
+    showToast('Please fill in all required fields.', 'error');
+    return;
+  }
+  if (high !== null && high < low) {
+    if (!confirm('Highest price is lower than lowest price. Save anyway?')) return;
+  }
 
-            tableBody.innerHTML = '';
+  submitBtn.disabled = true;
+  try {
+    await push(ref(db, 'observations'), {
+      item, location, low,
+      high: high === null ? null : high,
+      event: event || null,
+      notes: notes || null,
+      loggedBy,
+      date: serverTimestamp()
+    });
+    localStorage.setItem('lc_guild_logger_name', loggedBy);
+    form.reset();
+    loggedByInput.value = loggedBy;
+    showToast('Observation saved — guild sees it live!', 'success');
+  } catch (err) {
+    showToast('Save failed: ' + err.message, 'error');
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
 
-            if (filtered.length === 0) {
-                noDataMsg.style.display = 'block';
-                return;
-            }
-            noDataMsg.style.display = 'none';
+// ---- Delete ----
+async function deleteObservation(id) {
+  if (!confirm('Delete this observation for everyone?')) return;
+  try {
+    await remove(ref(db, 'observations/' + id));
+    showToast('Deleted.', 'success');
+  } catch (err) {
+    showToast('Delete failed: ' + err.message, 'error');
+  }
+}
 
-            filtered.forEach(o => {
-                const tr = document.createElement('tr');
+// ---- Render ----
+function renderTable() {
+  const q = searchInput.value.toLowerCase();
+  const src = sourceFilter.value;
+  const filtered = observations.filter(o => {
+    const ms = !q || (o.item || '').toLowerCase().includes(q) || (o.loggedBy || '').toLowerCase().includes(q);
+    const msrc = !src || o.location === src;
+    return ms && msrc;
+  });
 
-                const badgeClass = o.location === 'Trader Roy' ? 'badge-trader' :
-                                   o.location === 'Merchant' ? 'badge-merchant' : 'badge-event';
+  tableBody.innerHTML = '';
+  obsCountEl.textContent = `(${observations.length} total)`;
 
-                tr.innerHTML = `
-                    <td style="white-space:nowrap;font-size:0.8rem;">${formatDate(o.date)}</td>
-                    <td><strong>${escapeHtml(o.item)}</strong></td>
-                    <td><span class="badge ${badgeClass}">${escapeHtml(o.location)}</span></td>
-                    <td>${formatNumber(o.low)}</td>
-                    <td>${formatNumber(o.high)}</td>
-                    <td>${o.event ? escapeHtml(o.event) : '-'}</td>
-                    <td><button class="danger" style="padding:4px 8px;font-size:0.75rem;width:auto;margin:0;" data-id="${o.id}">✕</button></td>
-                `;
+  if (filtered.length === 0) {
+    noDataMsg.style.display = 'block';
+    noDataMsg.textContent = observations.length === 0 ? 'No price observations logged yet.' : 'No matching observations.';
+    return;
+  }
+  noDataMsg.style.display = 'none';
 
-                tr.querySelector('button').addEventListener('click', () => deleteObservation(o.id));
-                tableBody.appendChild(tr);
-            });
-        }
+  const LIMIT = 500;
+  const shown = filtered.slice(0, LIMIT);
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+  shown.forEach(o => {
+    const tr = document.createElement('tr');
+    const badgeClass = o.location === 'Trader Roy' ? 'badge-trader'
+                     : o.location === 'Merchant' ? 'badge-merchant' : 'badge-event';
+    tr.innerHTML = `
+      <td style="white-space:nowrap;font-size:0.8rem;">${formatDate(o.date)}</td>
+      <td><strong>${escapeHtml(o.item)}</strong></td>
+      <td><span class="badge ${badgeClass}">${escapeHtml(o.location)}</span></td>
+      <td>${formatNumber(o.low)}</td>
+      <td>${formatNumber(o.high)}</td>
+      <td>${o.event ? escapeHtml(o.event) : '-'}</td>
+      <td style="font-size:0.8rem;">${escapeHtml(o.loggedBy || '-')}</td>
+      <td><button class="danger" style="padding:4px 8px;font-size:0.75rem;width:auto;margin:0;" data-id="${o.id}">✕</button></td>
+    `;
+    tr.querySelector('button').addEventListener('click', () => deleteObservation(o.id));
+    tableBody.appendChild(tr);
+  });
 
-        function populateItemDropdown() {
-            const items = [...new Set(observations.map(o => o.item))].sort();
+  if (filtered.length > LIMIT) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="8" style="text-align:center;color:var(--text-light);font-style:italic;">Showing first ${LIMIT} of ${filtered.length}. Use search/filter to narrow.</td>`;
+    tableBody.appendChild(tr);
+  }
+}
 
-            analyticsItem.innerHTML = '<option value="">-- Choose an item --</option>';
-            items.forEach(item => {
-                const opt = document.createElement('option');
-                opt.value = item;
-                opt.textContent = item;
-                analyticsItem.appendChild(opt);
-            });
+function populateItemDropdown() {
+  const items = [...new Set(observations.map(o => o.item).filter(Boolean))].sort();
+  const current = analyticsItem.value;
 
-            if (analyticsItem.value && !items.includes(analyticsItem.value)) {
-                analyticsItem.value = '';
-            }
-        }
+  analyticsItem.innerHTML = '<option value="">-- Choose an item --</option>';
+  items.forEach(it => {
+    const opt = document.createElement('option');
+    opt.value = it; opt.textContent = it;
+    analyticsItem.appendChild(opt);
+  });
+  if (items.includes(current)) analyticsItem.value = current;
 
-        function renderAnalytics() {
-            const selected = analyticsItem.value;
+  itemDatalist.innerHTML = '';
+  items.forEach(it => {
+    const opt = document.createElement('option');
+    opt.value = it;
+    itemDatalist.appendChild(opt);
+  });
+}
 
-            if (!selected) {
-                avgLow.textContent = '-';
-                avgHigh.textContent = '-';
-                minPrice.textContent = '-';
-                maxPrice.textContent = '-';
-                if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-                return;
-            }
+function renderAnalytics() {
+  const selected = analyticsItem.value;
+  if (!selected) {
+    avgLowEl.textContent = avgHighEl.textContent = minPriceEl.textContent = maxPriceEl.textContent = '-';
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    return;
+  }
+  const itemObs = observations
+    .filter(o => o.item === selected)
+    .slice()
+    .sort((a, b) => (a.date || 0) - (b.date || 0));
 
-            const itemObs = observations
-                .filter(o => o.item === selected)
-                .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const lows = itemObs.map(o => o.low).filter(n => typeof n === 'number');
+  const highs = itemObs.map(o => o.high).filter(n => typeof n === 'number');
+  const avgL = lows.length ? lows.reduce((a, b) => a + b, 0) / lows.length : null;
+  const avgH = highs.length ? highs.reduce((a, b) => a + b, 0) / highs.length : null;
+  const minP = lows.length ? Math.min(...lows) : null;
+  const maxP = highs.length ? Math.max(...highs) : (lows.length ? Math.max(...lows) : null);
 
-            const lows = itemObs.map(o => o.low);
-            const highs = itemObs.filter(o => o.high !== null).map(o => o.high);
+  avgLowEl.textContent = formatNumber(avgL);
+  avgHighEl.textContent = formatNumber(avgH);
+  minPriceEl.textContent = formatNumber(minP);
+  maxPriceEl.textContent = formatNumber(maxP);
 
-            const avgL = lows.length ? lows.reduce((a, b) => a + b, 0) / lows.length : null;
-            const avgH = highs.length ? highs.reduce((a, b) => a + b, 0) / highs.length : null;
-            const minP = Math.min(...lows);
-            const maxP = highs.length ? Math.max(...highs) : Math.max(...lows);
+  if (chartInstance) chartInstance.destroy();
+  const labels = itemObs.map(o => {
+    const d = new Date(o.date || 0);
+    return isNaN(d) ? '-' : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  });
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Lowest Price', data: itemObs.map(o => o.low),
+          borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)',
+          fill: true, tension: 0.3, pointRadius: 4, pointHoverRadius: 6 },
+        { label: 'Highest Price', data: itemObs.map(o => o.high ?? null),
+          borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.1)',
+          fill: true, tension: 0.3, pointRadius: 4, pointHoverRadius: 6, spanGaps: true }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString() } }
+      },
+      scales: { y: { beginAtZero: false, ticks: { callback: v => v.toLocaleString() } } }
+    }
+  });
+}
 
-            avgLow.textContent = formatNumber(avgL);
-            avgHigh.textContent = formatNumber(avgH);
-            minPrice.textContent = formatNumber(minP);
-            maxPrice.textContent = formatNumber(maxP);
+function renderAll() {
+  renderTable();
+  populateItemDropdown();
+  renderAnalytics();
+}
 
-            // Chart
-            if (chartInstance) { chartInstance.destroy(); }
+searchInput.addEventListener('input', renderTable);
+sourceFilter.addEventListener('change', renderTable);
+analyticsItem.addEventListener('change', renderAnalytics);
 
-            const labels = itemObs.map(o => {
-                const d = new Date(o.date);
-                return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-            });
+exportBtn.addEventListener('click', () => {
+  if (observations.length === 0) { showToast('No data to export.', 'error'); return; }
+  const blob = new Blob([JSON.stringify(observations, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `lc-guild-price-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup downloaded.', 'success');
+});
 
-            const lowData = itemObs.map(o => o.low);
-            const highData = itemObs.map(o => o.high);
-
-            const ctx = document.getElementById('priceChart').getContext('2d');
-
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Lowest Price',
-                            data: lowData,
-                            borderColor: '#2563eb',
-                            backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                            fill: true,
-                            tension: 0.3,
-                            pointRadius: 4,
-                            pointHoverRadius: 6
-                        },
-                        {
-                            label: 'Highest Price',
-                            data: highData,
-                            borderColor: '#dc2626',
-                            backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                            fill: true,
-                            tension: 0.3,
-                            pointRadius: 4,
-                            pointHoverRadius: 6,
-                            spanGaps: true
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'top' },
-                        tooltip: {
-                            callbacks: {
-                                label: function (context) {
-                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString();
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            ticks: {
-                                callback: function (value) {
-                                    return value.toLocaleString();
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function renderAll() {
-            renderTable();
-            populateItemDropdown();
-            renderAnalytics();
-        }
-
-        // ========================
-        // EVENT LISTENERS
-        // ========================
-        searchInput.addEventListener('input', renderTable);
-        sourceFilter.addEventListener('change', renderTable);
-        analyticsItem.addEventListener('change', renderAnalytics);
-
-        // Export
-        exportBtn.addEventListener('click', function () {
-            if (observations.length === 0) {
-                alert('No data to export.');
-                return;
-            }
-            const blob = new Blob([JSON.stringify(observations, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `lc-guild-price-data-${new Date().toISOString().slice(0, 10)}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        });
-
-        // Import
-        importBtn.addEventListener('click', () => importFile.click());
-
-        importFile.addEventListener('change', function (e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function (evt) {
-                try {
-                    const imported = JSON.parse(evt.target.result);
-                    if (!Array.isArray(imported)) throw new Error('Invalid format');
-
-                    const existingIds = new Set(observations.map(o => o.id));
-                    let added = 0;
-
-                    imported.forEach(o => {
-                        if (o.id && !existingIds.has(o.id) && o.item && o.low !== undefined) {
-                            observations.push(o);
-                            added++;
-                        }
-                    });
-
-                    saveData(observations);
-                    renderAll();
-                    alert(`Imported ${added} new observation(s). Total: ${observations.length}`);
-                } catch (err) {
-                    alert('Error importing file. Please ensure it is a valid JSON export from this app.');
-                }
-            };
-            reader.readAsText(file);
-            importFile.value = '';
-        });
-
-        // Clear all
-        clearBtn.addEventListener('click', function () {
-            if (observations.length === 0) {
-                alert('No data to clear.');
-                return;
-            }
-            if (!confirm('⚠️ This will permanently delete ALL price observations. Are you sure?')) return;
-            if (!confirm('This action cannot be undone. Confirm one more time?')) return;
-
-            observations = [];
-            saveData(observations);
-            renderAll();
-        });
-
-        // ========================
-        // INITIALISE
-        // ========================
-        renderAll();
-    </script>
+clearBtn.addEventListener('click', async () => {
+  if (!observations.length) { showToast('Nothing to clear.', 'error'); return; }
+  const answer = prompt(`This will permanently delete ALL ${observations.length} observations for EVERYONE.\nType DELETE ALL to confirm:`);
+  if (answer !== 'DELETE ALL') { showToast('Cancelled.', ''); return; }
+  try {
+    await set(ref(db, 'observations'), null);
+    showToast('All shared data cleared.', 'success');
+  } catch (err) {
+    showToast('Clear failed: ' + err.message, 'error');
+  }
+});
+</script>
 </body>
 </html>
