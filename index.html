@@ -205,6 +205,15 @@
   .item-card-row span:first-child { color:var(--text-light); }
   .item-card-row span:last-child { font-weight:600; color:var(--text); }
   .item-card-stock { margin-top:6px; padding-top:8px; border-top:1px dashed var(--border); }
+
+  /* Recent Logs */
+  .recent-logs-box { background:var(--hover); border-radius:8px; padding:12px; margin-top:10px; border:1px solid var(--border); }
+  .recent-log-item { display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid var(--border); font-size:0.85rem; }
+  .recent-log-item:last-child { border-bottom:none; }
+  .seen-btn { background:transparent; border:1px solid var(--border); border-radius:4px; padding:4px 8px; font-size:0.75rem; cursor:pointer; color:var(--text-light); transition:all .2s; }
+  .seen-btn.seen { background:var(--primary); color:white; border-color:var(--primary); }
+  .seen-btn:hover { border-color:var(--primary); color:var(--primary); }
+  .seen-btn.seen:hover { background:var(--primary-hover); }
 </style>
 </head>
 <body data-theme="light">
@@ -231,6 +240,8 @@
 <nav class="main-tabs">
   <button data-view="prices" class="active">📋 Prices</button>
   <button data-view="items">📦 Items Directory</button>
+  <button data-view="watchlist">⭐ Watchlist</button>
+  <button data-view="sellers">👤 Sellers</button>
   <button data-view="analytics">📊 Analytics</button>
   <button data-view="deals">🔥 Deals</button>
   <button data-view="leaderboard">🏆 Leaderboard</button>
@@ -294,11 +305,7 @@
       </div>
       <button type="submit" id="submitBtn">💾 Save Observation</button>
     </form>
-  </div>
-
-  <div class="card" id="watchlistCard" style="display:none;">
-    <h2>⭐ Watchlist <span class="h2-right" id="watchlistCount"></span></h2>
-    <div id="watchlistBody"></div>
+    <div id="recentLogsContainer" style="display:none;"></div>
   </div>
 
   <div class="card">
@@ -335,6 +342,7 @@
             <th data-sort="qty">Qty</th>
             <th data-sort="event">Event</th>
             <th data-sort="loggedBy">By</th>
+            <th>Seen</th>
             <th></th>
           </tr>
         </thead>
@@ -364,6 +372,42 @@
     </div>
     <div id="itemsGrid" class="items-grid"></div>
     <p id="itemsEmptyMsg" class="empty-state" style="display:none;">No items found matching your criteria in this timeframe.</p>
+  </div>
+</section>
+
+<!-- ===== WATCHLIST VIEW ===== -->
+<section id="view-watchlist" class="view">
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+      <h2 style="margin:0; border:none; padding:0;">⭐ Watchlist</h2>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <input type="text" id="watchlistSearch" placeholder="🔍 Search watchlist..." style="min-width:200px;">
+        <select id="watchlistDateRange" style="width:auto;">
+          <option value="all">All Time</option>
+          <option value="1d">Today</option>
+          <option value="7d" selected>Last 7 Days</option>
+          <option value="30d">Last 30 Days</option>
+          <option value="90d">Last 90 Days</option>
+        </select>
+      </div>
+    </div>
+    <div id="watchlistGrid" class="items-grid"></div>
+    <p id="watchlistEmptyMsg" class="empty-state" style="display:none;">No items in watchlist matching your criteria.</p>
+    <div class="pagination" id="watchlistPagination"></div>
+  </div>
+</section>
+
+<!-- ===== SELLERS VIEW ===== -->
+<section id="view-sellers" class="view">
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+      <h2 style="margin:0; border:none; padding:0;">👤 Sellers Directory</h2>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <input type="text" id="sellersSearch" placeholder="🔍 Search sellers..." style="min-width:200px;">
+      </div>
+    </div>
+    <div id="sellersGrid" class="items-grid"></div>
+    <p id="sellersEmptyMsg" class="empty-state" style="display:none;">No sellers found.</p>
   </div>
 </section>
 
@@ -422,7 +466,7 @@
           <option value="365d">Last year</option>
         </select>
       </div>
-      <p class="data-hint" style="margin-bottom:10px;">Click a seller's name to view their full profile.</p>
+      <p class="data-hint" style="margin-bottom:10px;">Click a seller's name to view their pricing history for this item.</p>
       <div class="scrollable" style="max-height:400px;">
         <table class="event-table" id="sellerBreakdownTable">
           <thead>
@@ -629,6 +673,10 @@ let dateRangeFilter = 'all';
 let sellerDateRangeFilter = 'all';
 let itemsDateRangeFilter = '7d';
 let itemsSearch = '';
+let watchlistPage = 1;
+let watchlistSearch = '';
+let watchlistDateRange = '7d';
+let sellersSearch = '';
 
 // Image upload state
 let cropperInstance = null;
@@ -663,8 +711,7 @@ $('themeToggle').addEventListener('click', () => {
   document.body.dataset.theme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
   localStorage.setItem('lc_theme', document.body.dataset.theme);
   updateThemeIcon();
-  renderAnalyticsView();
-  renderItemsView();
+  renderAll(); // Re-render to update chart colors
 });
 function updateThemeIcon() { $('themeToggle').textContent = document.body.dataset.theme === 'dark' ? '☀️' : '🌙'; }
 
@@ -720,13 +767,129 @@ function getIconHtml(itemName) {
   return `<div class="item-icon" style="display:inline-flex;align-items:center;justify-content:center;color:var(--text-light);font-size:16px;">?</div>`;
 }
 
-// ==== Navigation Helper ====
+// ==== Navigation Helpers ====
 window.jumpToItem = function(itemName) {
   switchView('analytics');
   $('analyticsSearch').value = itemName;
   populateAnalyticsDropdown();
   $('analyticsItem').value = itemName;
   renderAnalyticsView();
+};
+
+// ==== Seen Toggle Logic ====
+window.toggleSeen = async function(obsId) {
+  if (!currentUid) return;
+  const obs = observations.find(o => o.id === obsId);
+  if (!obs) return;
+  const seenBy = obs.seenBy || {};
+  const isSeen = !!seenBy[currentUid];
+  
+  try {
+    if (isSeen) {
+      await remove(ref(db, 'observations/' + obsId + '/seenBy/' + currentUid));
+    } else {
+      await set(ref(db, 'observations/' + obsId + '/seenBy/' + currentUid), true);
+    }
+  } catch (err) {
+    showToast('Failed to toggle seen: ' + err.message, 'error');
+  }
+};
+
+// ==== Recent Logs Logic ====
+function renderRecentLogs() {
+  const container = $('recentLogsContainer');
+  const itemName = itemNameInput.value.trim();
+  if (!itemName) { container.style.display = 'none'; return; }
+  
+  const exactItem = getUniqueItems().find(it => normalize(it) === normalize(itemName));
+  if (!exactItem) { container.style.display = 'none'; return; }
+  
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const recentObs = observations.filter(o => o.item === exactItem && (o.date || 0) >= oneDayAgo).sort((a,b) => (b.date||0) - (a.date||0));
+  
+  if (recentObs.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+  
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div class="recent-logs-box">
+      <h4 style="margin-bottom:10px; color:var(--primary);">📋 Recent Logs for ${esc(exactItem)} (Last 24h)</h4>
+      <p class="data-hint" style="margin-bottom:8px;">If you saw any of these exact listings, click "Seen" to confirm without logging a duplicate.</p>
+      ${recentObs.map(o => {
+        const seen = o.seenBy && o.seenBy[currentUid];
+        return `
+          <div class="recent-log-item">
+            <div>
+              <strong>${esc(getCanonicalSeller(o.seller))}</strong> - ${fmtNum(getPrice(o))} (x${getQty(o)}) <span class="badge ${o.location==='Trader Roy'?'badge-trader':o.location==='Merchant'?'badge-merchant':'badge-event'}">${esc(o.location)}</span>
+              <span style="font-size:0.75rem;color:var(--text-light);margin-left:8px;">${fmtDate(o.date)}</span>
+            </div>
+            <button class="seen-btn ${seen?'seen':''}" onclick="window.toggleSeen('${o.id}')">
+              ${seen ? '✅ Seen' : '👁️ Seen'}
+            </button>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// ==== Seller Item History Modal ====
+window.showSellerItemHistory = function(sellerName, itemName) {
+  const seller = getCanonicalSeller(sellerName);
+  const sObs = observations.filter(o => getCanonicalSeller(o.seller) === seller && o.item === itemName).sort((a,b) => (a.date||0) - (b.date||0));
+  
+  if (sObs.length === 0) return showToast('No data for this seller/item.', 'error');
+  
+  const prices = sObs.map(o => getPrice(o)).filter(n => typeof n === 'number');
+  const minP = prices.length ? Math.min(...prices) : 0;
+  const maxP = prices.length ? Math.max(...prices) : 0;
+  const avgP = prices.length ? prices.reduce((a,b)=>a+b,0)/prices.length : 0;
+  const latestQty = getQty(sObs[sObs.length-1]);
+  const maxQty = Math.max(...sObs.map(o => getQty(o)));
+  
+  let html = `
+    <h3>👤 ${esc(seller)} — ${esc(itemName)}</h3>
+    <div class="stat-grid" style="margin-bottom:16px;">
+      <div class="stat-box"><div class="value">${fmtNum(latestQty)}</div><div class="label">Current Qty</div></div>
+      <div class="stat-box"><div class="value">${fmtNum(maxQty)}</div><div class="label">Max Qty</div></div>
+      <div class="stat-box"><div class="value">${fmtNum(avgP)}</div><div class="label">Avg Price</div></div>
+      <div class="stat-box"><div class="value">${fmtNum(minP)} - ${fmtNum(maxP)}</div><div class="label">Price Range</div></div>
+      <div class="stat-box"><div class="value">${fmtNum(latestQty * minP)} - ${fmtNum(latestQty * maxP)}</div><div class="label">Stock Value Range</div></div>
+    </div>
+    
+    <h4 style="margin-bottom:8px; color:var(--text);">Price History</h4>
+    <div class="scrollable" style="max-height:300px;">
+      <table class="event-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Price</th>
+            <th>Qty</th>
+            <th>Location</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sObs.slice().reverse().map(o => `
+            <tr>
+              <td>${fmtDate(o.date)}</td>
+              <td>${fmtNum(getPrice(o))}</td>
+              <td>${getQty(o)}</td>
+              <td>${esc(o.location)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="modal-actions">
+      <button class="secondary" onclick="window.__closeModal()">Close</button>
+      <button onclick="window.showSellerProfile('${esc(seller)}')">👤 Go to Full Profile</button>
+    </div>
+  `;
+  
+  openModal(html);
 };
 
 // ==== Seller Profile Modal ====
@@ -1016,6 +1179,7 @@ itemNameInput.addEventListener('input', () => {
       itemNameInput.value = it; 
       itemSuggest.classList.remove('show');
       updateDropzoneUI();
+      renderRecentLogs();
     });
     itemSuggest.appendChild(div);
   });
@@ -1030,6 +1194,7 @@ itemNameInput.addEventListener('input', () => {
       itemNameInput.value = itemNameInput.value.trim(); 
       itemSuggest.classList.remove('show'); 
       updateDropzoneUI();
+      renderRecentLogs();
     });
     itemSuggest.appendChild(createDiv);
   }
@@ -1037,6 +1202,7 @@ itemNameInput.addEventListener('input', () => {
   else itemSuggest.classList.remove('show');
   
   updateDropzoneUI();
+  renderRecentLogs();
 });
 
 itemNameInput.addEventListener('blur', () => setTimeout(() => itemSuggest.classList.remove('show'), 150));
@@ -1188,6 +1354,7 @@ async function boot() {
     observations = Object.entries(val).map(([id, data]) => ({ id, ...data }))
       .sort((a,b) => (b.date||0) - (a.date||0));
     renderAll();
+    renderRecentLogs();
   }, err => showToast('Read failed: ' + err.message, 'error'));
   
   onValue(ref(db, 'itemNotes'), snap => {
@@ -1326,12 +1493,13 @@ $('priceForm').addEventListener('submit', async e => {
       }
     }
 
-    await push(ref(db, 'observations'), { item, seller: canonicalSeller, location, price, qty, event: event||null, notes: notes||null, loggedBy, date: serverTimestamp(), uid: currentUid });
+    await push(ref(db, 'observations'), { item, seller: canonicalSeller, location, price, qty, event: event||null, notes: notes||null, loggedBy, date: serverTimestamp(), uid: currentUid, seenBy: {} });
     
     localStorage.setItem('lc_guild_logger_name', loggedBy);
     $('priceForm').reset();
     loggedByInput.value = loggedBy;
     updateDropzoneUI();
+    renderRecentLogs();
     showToast('Saved — guild sees it live!', 'success');
   } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
   finally { $('submitBtn').disabled = false; }
@@ -1348,6 +1516,7 @@ function switchView(view) {
   document.querySelectorAll('.main-tabs button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
   renderAll();
+  if (view === 'prices') renderRecentLogs();
 }
 
 document.querySelectorAll('.admin-tabs button').forEach(btn => {
@@ -1376,6 +1545,13 @@ $('sellerDateRangeFilter').addEventListener('change', (e) => {
 // Items Directory listeners
 $('itemsSearch').addEventListener('input', (e) => { itemsSearch = e.target.value; renderItemsView(); });
 $('itemsDateRange').addEventListener('change', (e) => { itemsDateRangeFilter = e.target.value; renderItemsView(); });
+
+// Watchlist listeners
+$('watchlistSearch').addEventListener('input', e => { watchlistSearch = e.target.value; watchlistPage = 1; renderWatchlistView(); });
+$('watchlistDateRange').addEventListener('change', e => { watchlistDateRange = e.target.value; watchlistPage = 1; renderWatchlistView(); });
+
+// Sellers listeners
+$('sellersSearch').addEventListener('input', e => { sellersSearch = e.target.value; renderSellersView(); });
 
 document.querySelectorAll('#priceTable th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
@@ -1471,6 +1647,7 @@ function renderPricesView() {
       const isStarred = watchlist.includes(o.item);
       const isOutlier = outliers.has(o.id);
       const seller = getCanonicalSeller(o.seller);
+      const seen = o.seenBy && o.seenBy[currentUid];
       tr.innerHTML = `
         <td class="star-col"><button class="pin-btn ${isStarred?'active':''}" data-item="${esc(o.item)}">${isStarred?'⭐':'☆'}</button></td>
         <td style="white-space:nowrap;font-size:0.8rem;">${fmtDate(o.date)}</td>
@@ -1490,12 +1667,14 @@ function renderPricesView() {
         <td>${getQty(o)}</td>
         <td>${o.event ? esc(o.event) : '-'}</td>
         <td style="font-size:0.8rem;">${esc(o.loggedBy||'-')}</td>
+        <td><button class="seen-btn ${seen?'seen':''}" onclick="window.toggleSeen('${o.id}')">${seen ? '✅ Seen' : '👁️'}</button></td>
         <td>${isAdmin ? `<button class="danger small" data-del="${o.id}">✕</button> <button class="secondary small" data-edit="${o.id}">✏️</button>` : ''}</td>
       `;
       tr.querySelector('.pin-btn').addEventListener('click', e => { e.preventDefault(); toggleWatchlist(o.item); });
       
       tr.querySelector('.seller-link').addEventListener('click', (e) => {
         e.preventDefault();
+        // In prices view, clicking seller opens full profile
         window.showSellerProfile(seller);
       });
 
@@ -1519,7 +1698,6 @@ function renderPricesView() {
     });
   }
   renderPagination(totalPages, filtered.length);
-  renderWatchlist();
 }
 
 function renderItemsView() {
@@ -1537,12 +1715,11 @@ function renderItemsView() {
   const allItems = getUniqueItems().filter(it => normalize(it).includes(q));
   
   grid.innerHTML = '';
-  
   let renderedCount = 0;
   
   allItems.forEach(item => {
     const itemObs = observations.filter(o => o.item === item && (o.date || 0) >= cutoff);
-    if (itemObs.length === 0) return; // Don't show items with no data in this range
+    if (itemObs.length === 0) return;
     
     renderedCount++;
     
@@ -1551,13 +1728,96 @@ function renderItemsView() {
     const maxP = prices.length ? Math.max(...prices) : 0;
     const avgP = prices.length ? prices.reduce((a,b)=>a+b,0)/prices.length : 0;
     
-    // Deduplicate stock
     const latestPerSeller = {};
     itemObs.sort((a,b) => (a.date||0) - (b.date||0)).forEach(o => {
       latestPerSeller[getCanonicalSeller(o.seller)] = o;
     });
     const totalQty = Object.values(latestPerSeller).reduce((sum, o) => sum + getQty(o), 0);
+    const lowVal = totalQty * minP;
+    const highVal = totalQty * maxP;
     
+    const trend = computeTrend(itemObs);
+    let trendHtml = '<span class="trend-flat">—</span>';
+    if (trend) {
+      const cls = trend.pct > 2 ? 'trend-up' : trend.pct < -2 ? 'trend-down' : 'trend-flat';
+      trendHtml = `<span class="${cls}">${trend.pct>0?'▲':trend.pct<0?'▼':'■'} ${Math.abs(trend.pct).toFixed(1)}%</span>`;
+    }
+    
+    const recent14d = observations.filter(o => o.item === item && (o.date || 0) >= Date.now() - 14*86400000);
+    let dealHtml = '-';
+    if (recent14d.length >= 3) {
+      const avg14 = recent14d.reduce((s,o)=>s+getPrice(o),0) / recent14d.length;
+      const currentLow = Math.min(...recent14d.map(o => getPrice(o)));
+      const discount = ((avg14 - currentLow) / avg14) * 100;
+      if (discount >= 15) {
+        dealHtml = `<span style="color:var(--success);font-weight:bold;">-${discount.toFixed(1)}%</span>`;
+      }
+    }
+    
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <div class="item-card-header">
+        ${getIconHtml(item).replace('32px','40px').replace('item-icon','item-icon large')}
+        <h3>${esc(item)}</h3>
+      </div>
+      <div class="item-card-body">
+        <div class="item-card-row"><span>Avg Price:</span> <span>${fmtNum(avgP)}</span></div>
+        <div class="item-card-row"><span>Price Range:</span> <span><span style="color:var(--success)">${fmtNum(minP)}</span> - <span style="color:var(--danger)">${fmtNum(maxP)}</span></span></div>
+        <div class="item-card-row"><span>Market Stock:</span> <span>${fmtNum(totalQty)}</span></div>
+        <div class="item-card-row"><span>7d Trend:</span> <span>${trendHtml}</span></div>
+        <div class="item-card-row"><span>Best Deal (vs 14d avg):</span> <span>${dealHtml}</span></div>
+        <div class="item-card-row item-card-stock"><span>Market Value:</span> <span>${fmtNum(lowVal)} - ${fmtNum(highVal)}</span></div>
+      </div>
+    `;
+    card.addEventListener('click', () => window.jumpToItem(item));
+    grid.appendChild(card);
+  });
+  
+  emptyMsg.style.display = renderedCount === 0 ? 'block' : 'none';
+}
+
+function renderWatchlistView() {
+  if (activeView !== 'watchlist') return;
+  const grid = $('watchlistGrid');
+  const emptyMsg = $('watchlistEmptyMsg');
+  const pagEl = $('watchlistPagination');
+  
+  let cutoff = 0;
+  if (watchlistDateRange !== 'all') {
+    const days = { '1d':1, '7d':7, '30d':30, '90d':90 }[watchlistDateRange] || 0;
+    cutoff = Date.now() - days * 86400000;
+  }
+  
+  const q = normalize(watchlistSearch);
+  const filteredItems = watchlist.filter(it => normalize(it).includes(q));
+  
+  if (filteredItems.length === 0) {
+    grid.innerHTML = '';
+    emptyMsg.style.display = 'block';
+    pagEl.innerHTML = '';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+  
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / 25));
+  if (watchlistPage > totalPages) watchlistPage = totalPages;
+  const start = (watchlistPage - 1) * 25;
+  const paged = filteredItems.slice(start, start + 25);
+  
+  grid.innerHTML = '';
+  paged.forEach(item => {
+    const itemObs = observations.filter(o => o.item === item && (o.date || 0) >= cutoff);
+    const prices = itemObs.map(o => getPrice(o)).filter(n => typeof n === 'number');
+    const minP = prices.length ? Math.min(...prices) : 0;
+    const maxP = prices.length ? Math.max(...prices) : 0;
+    const avgP = prices.length ? prices.reduce((a,b)=>a+b,0)/prices.length : 0;
+    
+    const latestPerSeller = {};
+    itemObs.sort((a,b) => (a.date||0) - (b.date||0)).forEach(o => {
+      latestPerSeller[getCanonicalSeller(o.seller)] = o;
+    });
+    const totalQty = Object.values(latestPerSeller).reduce((sum, o) => sum + getQty(o), 0);
     const lowVal = totalQty * minP;
     const highVal = totalQty * maxP;
     
@@ -1575,17 +1835,82 @@ function renderItemsView() {
         <div class="item-card-row item-card-stock"><span>Market Value:</span> <span>${fmtNum(lowVal)} - ${fmtNum(highVal)}</span></div>
       </div>
     `;
-    card.addEventListener('click', () => {
-      window.jumpToItem(item);
-    });
+    card.addEventListener('click', () => window.jumpToItem(item));
     grid.appendChild(card);
   });
   
-  if (renderedCount === 0) {
+  let pagesHtml = '';
+  const pageBtn = (n) => `<button data-page="${n}" class="${n === watchlistPage ? 'active' : ''}">${n}</button>`;
+  pagesHtml += `<button data-page="${watchlistPage-1}" ${watchlistPage===1?'disabled':''}>‹ Prev</button>`;
+  const startPage = Math.max(1, watchlistPage - 2), endPage = Math.min(totalPages, watchlistPage + 2);
+  if (startPage > 1) pagesHtml += pageBtn(1) + (startPage > 2 ? '<span style="padding:5px;">…</span>' : '');
+  for (let i = startPage; i <= endPage; i++) pagesHtml += pageBtn(i);
+  if (endPage < totalPages) pagesHtml += (endPage < totalPages-1 ? '<span style="padding:5px;">…</span>' : '') + pageBtn(totalPages);
+  pagesHtml += `<button data-page="${watchlistPage+1}" ${watchlistPage===totalPages?'disabled':''}>Next ›</button>`;
+  pagEl.innerHTML = `<span>Showing ${start+1}–${Math.min(start+25, filteredItems.length)} of ${filteredItems.length}</span><div class="pages">${pagesHtml}</div>`;
+  pagEl.querySelectorAll('button[data-page]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      watchlistPage = parseInt(btn.dataset.page);
+      renderWatchlistView();
+    });
+  });
+}
+
+function renderSellersView() {
+  if (activeView !== 'sellers') return;
+  const grid = $('sellersGrid');
+  const emptyMsg = $('sellersEmptyMsg');
+  
+  const q = normalize(sellersSearch);
+  const allSellers = getUniqueSellers().filter(s => normalize(s).includes(q));
+  
+  if (allSellers.length === 0) {
+    grid.innerHTML = '';
     emptyMsg.style.display = 'block';
-  } else {
-    emptyMsg.style.display = 'none';
+    return;
   }
+  emptyMsg.style.display = 'none';
+  
+  grid.innerHTML = '';
+  allSellers.forEach(seller => {
+    const sObs = observations.filter(o => getCanonicalSeller(o.seller) === seller);
+    if (sObs.length === 0) return;
+    
+    sObs.sort((a,b) => (a.date||0) - (b.date||0));
+    const items = {};
+    sObs.forEach(o => {
+      const p = getPrice(o);
+      const qty = getQty(o);
+      if (!items[o.item]) items[o.item] = { low: Infinity, high: 0, latestQty: 0 };
+      const i = items[o.item];
+      if (p < i.low) i.low = p;
+      if (p > i.high) i.high = p;
+      i.latestQty = qty;
+    });
+    
+    let totalLowVal = 0;
+    let totalHighVal = 0;
+    Object.values(items).forEach(i => {
+      totalLowVal += i.latestQty * i.low;
+      totalHighVal += i.latestQty * i.high;
+    });
+    
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <div class="item-card-header">
+        <div class="item-icon large" style="display:flex;align-items:center;justify-content:center;font-size:20px;">👤</div>
+        <h3>${esc(seller)}</h3>
+      </div>
+      <div class="item-card-body">
+        <div class="item-card-row"><span>Unique Items:</span> <span>${Object.keys(items).length}</span></div>
+        <div class="item-card-row"><span>Observations:</span> <span>${sObs.length}</span></div>
+        <div class="item-card-row item-card-stock"><span>Est. Total Stock Value:</span> <span>${fmtNum(totalLowVal)} - ${fmtNum(totalHighVal)}</span></div>
+      </div>
+    `;
+    card.addEventListener('click', () => window.showSellerProfile(seller));
+    grid.appendChild(card);
+  });
 }
 
 function renderPagination(totalPages, totalItems) {
@@ -1616,29 +1941,6 @@ function toggleWatchlist(item) {
   else watchlist.push(item);
   localStorage.setItem('lc_watchlist', JSON.stringify(watchlist));
   renderAll();
-}
-
-function renderWatchlist() {
-  const card = $('watchlistCard');
-  const body = $('watchlistBody');
-  if (watchlist.length === 0) { card.style.display = 'none'; return; }
-  card.style.display = 'block';
-  $('watchlistCount').textContent = `(${watchlist.length})`;
-  const itemsHtml = watchlist.map(item => {
-    const obs = observations.filter(o => o.item === item);
-    if (obs.length === 0) return `<div class="deal-row"><div class="deal-info"><div class="item-name">${getIconHtml(item)} ${esc(item)}</div><div class="deal-meta">No observations</div></div></div>`;
-    const latest = obs[0];
-    const avg = obs.slice(0,20).reduce((s,o)=>s+getPrice(o),0) / Math.min(20, obs.length);
-    const trend = computeTrend(obs);
-    const trendStr = trend ? `<span class="${trend.pct>2?'trend-up':trend.pct<-2?'trend-down':'trend-flat'}">${trend.pct>0?'▲':trend.pct<0?'▼':'■'} ${Math.abs(trend.pct).toFixed(1)}%</span>` : '';
-    return `<div class="deal-row"><div class="deal-info"><div class="item-name"><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light); display:flex; align-items:center; gap:8px;" data-jump="${esc(item)}">${getIconHtml(item)} ${esc(item)}</a></div><div class="deal-meta">Latest: ${fmtNum(getPrice(latest))} • Avg: ${fmtNum(avg)}</div></div><div style="display:flex;gap:8px;align-items:center;">${trendStr}<button class="pin-btn active" data-unwatch="${esc(item)}" title="Remove from watchlist">✕</button></div></div>`;
-  }).join('');
-  body.innerHTML = itemsHtml;
-  body.querySelectorAll('button[data-unwatch]').forEach(btn => btn.addEventListener('click', () => toggleWatchlist(btn.dataset.unwatch)));
-  body.querySelectorAll('a[data-jump]').forEach(a => a.addEventListener('click', e => {
-    e.preventDefault();
-    window.jumpToItem(a.dataset.jump);
-  }));
 }
 
 function computeTrend(obs) {
@@ -1729,7 +2031,6 @@ function renderAnalyticsView() {
   const minPrice = prices.length ? Math.min(...prices) : 0;
   const maxPrice = prices.length ? Math.max(...prices) : 0;
 
-  // Deduplicate stock calculation by finding latest report per seller
   const latestObsPerSeller = {};
   itemObs.forEach(o => {
     const sellerKey = getCanonicalSeller(o.seller);
@@ -1742,7 +2043,6 @@ function renderAnalyticsView() {
   $('minPrice').textContent = fmtNum(minPrice);
   $('maxPrice').textContent = fmtNum(maxPrice);
 
-  // Market Value Range Logic
   const lowVal = totalQtySeen * minPrice;
   const highVal = totalQtySeen * maxPrice;
   const diffVal = highVal - lowVal;
@@ -1856,6 +2156,7 @@ function renderEventImpact(itemObs) {
 
 function renderSellerBreakdown(allItemObs) {
   const body = $('sellerBreakdownBody');
+  const selectedItem = $('analyticsItem').value;
   
   let cutoff = 0;
   if (sellerDateRangeFilter !== 'all') {
@@ -1915,7 +2216,7 @@ function renderSellerBreakdown(allItemObs) {
 
   body.querySelectorAll('.seller-link').forEach(a => a.addEventListener('click', (e) => {
     e.preventDefault();
-    window.showSellerProfile(a.dataset.seller);
+    window.showSellerItemHistory(a.dataset.seller, selectedItem);
   }));
 }
 
@@ -2589,15 +2890,17 @@ function renderAll() {
   updateDropzoneUI();
   if (activeView === 'prices') renderPricesView();
   else if (activeView === 'items') renderItemsView();
+  else if (activeView === 'watchlist') renderWatchlistView();
+  else if (activeView === 'sellers') renderSellersView();
   else if (activeView === 'analytics') renderAnalyticsView();
   else if (activeView === 'deals') renderDealsView();
   else if (activeView === 'leaderboard') renderLeaderboardView();
   else if (activeView === 'admin') renderAdminView();
-  if (activeView !== 'prices') renderWatchlist();
+  
+  if (activeView === 'prices') renderRecentLogs();
 }
 
 renderPricesView();
 </script>
 </body>
 </html>
-```
