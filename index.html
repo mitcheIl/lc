@@ -1,3 +1,15 @@
+This is a critical fix for market data accuracy. 
+
+To solve this, we are going to change how the app handles duplicates and how it calculates the total stock. I've implemented **three major changes**:
+
+1. **Hard Duplicate Blocking**: If someone tries to log the *exact same item, seller, price, and quantity* within 24 hours, the app will completely block it and tell them to input a new quantity if stock has changed. This stops the 10x inflation.
+2. **Per-Seller Stock Logic**: The "Est. Market Stock" now calculates the *latest known quantity for each unique player*. If Bob has 1000, and 5 people log Bob's 1000 stock, the app only counts 1000. When Bob's stock drops to 820, the app updates Bob's contribution to 820.
+3. **Seller Breakdown Table**: I added a new table under the Analytics chart. It breaks down the selected item by player, showing exactly what you asked for: **Max Qty Seen**, **Lowest Price**, **Highest Price**, and their **Current Qty**.
+
+### 📄 Update `index.html`
+Replace your entire file with this updated version:
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -356,11 +368,33 @@
       <div class="stat-box"><div class="label">Best Day to BUY</div><div class="value" id="bestBuyDay" style="font-size:1rem;">-</div><div class="label" id="bestBuyDayDetail" style="font-size:0.7rem;"></div></div>
       <div class="stat-box"><div class="label">Best Day to SELL</div><div class="value" id="bestSellDay" style="font-size:1rem;">-</div><div class="label" id="bestSellDayDetail" style="font-size:0.7rem;"></div></div>
     </div>
-    <div class="chart-container"><canvas id="priceChart"></canvas></div>
-    <div id="eventImpactSection" style="margin-top:16px;">
+    <div class="chart-container" style="margin-bottom:20px;"><canvas id="priceChart"></canvas></div>
+    
+    <div id="eventImpactSection" style="margin-bottom:20px;">
       <h3 style="font-size:0.95rem;margin-bottom:6px;color:var(--primary);">🎪 Event Impact</h3>
       <table class="event-table" id="eventTable"><thead><tr><th>Event</th><th>Observations</th><th>Avg Price</th><th>vs Overall</th></tr></thead><tbody></tbody></table>
       <p id="eventImpactEmpty" class="empty-state" style="display:none;">Not enough data to analyze event impact.</p>
+    </div>
+
+    <div id="sellerBreakdownSection">
+      <h3 style="font-size:0.95rem;margin-bottom:6px;color:var(--primary);">👤 Seller Breakdown</h3>
+      <p class="data-hint" style="margin-bottom:10px;">Tracks the max quantity seen, lowest/highest prices per player, and their latest reported stock.</p>
+      <div class="scrollable" style="max-height:300px;">
+        <table class="event-table" id="sellerBreakdownTable">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Current Qty</th>
+              <th>Max Qty Seen</th>
+              <th>Lowest Price</th>
+              <th>Highest Price</th>
+              <th>Last Seen</th>
+            </tr>
+          </thead>
+          <tbody id="sellerBreakdownBody"></tbody>
+        </table>
+      </div>
+      <p id="sellerBreakdownEmpty" class="empty-state" style="display:none;">No seller data available.</p>
     </div>
   </div>
 
@@ -1117,19 +1151,18 @@ $('priceForm').addEventListener('submit', async e => {
   // Apply Name Change Alias mapping AFTER validation
   const canonicalSeller = getCanonicalSeller(seller);
 
-  // Deduplication check for stock
-  const thirtyMinsAgo = Date.now() - 30 * 60000;
-  const recentDup = observations.find(o => 
+  // Hard Duplicate Block (within 24 hours)
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const exactDup = observations.find(o => 
     normalize(o.item) === normalize(item) && 
     normalize(getCanonicalSeller(o.seller)) === normalize(canonicalSeller) && 
     getPrice(o) === price && 
     getQty(o) === qty && 
-    (o.date || 0) > thirtyMinsAgo
+    (o.date || 0) > oneDayAgo
   );
-  if (recentDup) {
-    if (!confirm(`⚠️ Someone just logged this exact price (${fmtNum(price)}) and quantity (${qty}) for ${canonicalSeller} in the last 30 minutes.\n\nAre you sure you want to log it again?`)) {
-      return;
-    }
+  
+  if (exactDup) {
+    return showToast(`This exact data (Qty: ${qty}, Price: ${fmtNum(price)}) was already logged for ${canonicalSeller} today. If the stock has changed, please enter the new quantity.`, 'error');
   }
 
   $('submitBtn').disabled = true;
@@ -1463,6 +1496,8 @@ function renderAnalyticsView() {
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
     $('eventTable').querySelector('tbody').innerHTML = '';
     $('eventImpactEmpty').style.display = 'block';
+    $('sellerBreakdownBody').innerHTML = '';
+    $('sellerBreakdownEmpty').style.display = 'block';
     noteText.value = ''; noteUpdatedBy.textContent = '';
     headerImg.innerHTML = '';
     return;
@@ -1481,7 +1516,7 @@ function renderAnalyticsView() {
   // Deduplicate stock calculation by finding latest report per seller
   const latestObsPerSeller = {};
   itemObs.forEach(o => {
-    const sellerKey = getCanonicalSeller(o.seller) + '|' + o.location;
+    const sellerKey = getCanonicalSeller(o.seller);
     latestObsPerSeller[sellerKey] = o; // Because itemObs is sorted by date ascending, the last one is the most recent
   });
   const totalQtySeen = Object.values(latestObsPerSeller).reduce((sum, o) => sum + getQty(o), 0);
@@ -1513,6 +1548,7 @@ function renderAnalyticsView() {
 
   renderChart(itemObs);
   renderEventImpact(itemObs);
+  renderSellerBreakdown(itemObs);
 
   const note = itemNotes.find(n => n.item === selected);
   noteText.value = note ? note.note : '';
@@ -1586,6 +1622,56 @@ function renderEventImpact(itemObs) {
     return `<tr><td><span class="badge badge-event">${esc(r.ev)}</span></td><td>${r.count}</td><td>${fmtNum(r.avg)}</td><td class="${cls}">${pctStr}</td></tr>`;
   }).join('');
   $('eventImpactEmpty').style.display = rows.length ? 'none' : 'block';
+}
+
+function renderSellerBreakdown(itemObs) {
+  const body = $('sellerBreakdownBody');
+  const stats = {};
+  
+  itemObs.forEach(o => {
+    const seller = getCanonicalSeller(o.seller);
+    const p = getPrice(o);
+    const q = getQty(o);
+    const date = o.date || 0;
+    
+    if (!stats[seller]) {
+      stats[seller] = {
+        seller, maxQty: 0, lowPrice: Infinity, highPrice: 0,
+        latestQty: 0, latestDate: 0
+      };
+    }
+    
+    const s = stats[seller];
+    if (q > s.maxQty) s.maxQty = q;
+    if (p < s.lowPrice) s.lowPrice = p;
+    if (p > s.highPrice) s.highPrice = p;
+    
+    // itemObs is sorted ascending, so this will naturally grab the latest
+    if (date >= s.latestDate) {
+      s.latestDate = date;
+      s.latestQty = q;
+    }
+  });
+
+  const sorted = Object.values(stats).sort((a,b) => b.latestQty - a.latestQty);
+  
+  if (sorted.length === 0) {
+    body.innerHTML = '';
+    $('sellerBreakdownEmpty').style.display = 'block';
+    return;
+  }
+
+  $('sellerBreakdownEmpty').style.display = 'none';
+  body.innerHTML = sorted.map(s => `
+    <tr>
+      <td><strong>${esc(s.seller)}</strong></td>
+      <td><strong>${fmtNum(s.latestQty)}</strong></td>
+      <td>${fmtNum(s.maxQty)}</td>
+      <td style="color:var(--success)">${fmtNum(s.lowPrice)}</td>
+      <td style="color:var(--danger)">${fmtNum(s.highPrice)}</td>
+      <td style="font-size:0.8rem;color:var(--text-light);">${fmtDate(s.latestDate)}</td>
+    </tr>
+  `).join('');
 }
 
 $('saveNoteBtn').addEventListener('click', async () => {
@@ -2268,3 +2354,4 @@ renderPricesView();
 </script>
 </body>
 </html>
+```
