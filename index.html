@@ -237,6 +237,13 @@
           <div id="pendingImgPreview" style="display:none; margin-top:10px;"></div>
         </div>
         <div class="form-group">
+          <label for="sellerName">Seller * <a href="#" id="reqNameChangeBtn" style="font-weight:normal;font-size:0.75rem;color:var(--primary);text-decoration:none;margin-left:8px;">[Request Name Change]</a></label>
+          <input type="text" id="sellerName" list="sellersDatalist" required placeholder="Player name..." autocomplete="off">
+          <datalist id="sellersDatalist"></datalist>
+        </div>
+      </div>
+      <div class="row">
+        <div class="form-group">
           <label for="location">Source *</label>
           <select id="location" required>
             <option value="">-- Select --</option>
@@ -247,12 +254,6 @@
             <option value="Other">Other</option>
           </select>
         </div>
-      </div>
-      <div class="row">
-        <div class="form-group"><label for="itemPrice">Price *</label><input type="number" id="itemPrice" required min="0" step="any" placeholder="e.g., 2100000"></div>
-        <div class="form-group"><label for="itemQty">Quantity *</label><input type="number" id="itemQty" required min="1" step="1" placeholder="e.g., 5"></div>
-      </div>
-      <div class="row">
         <div class="form-group"><label for="event">Event</label>
           <select id="event">
             <option value="">None</option>
@@ -265,9 +266,15 @@
             <option value="Other">Other</option>
           </select>
         </div>
-        <div class="form-group"><label for="notes">Notes</label><input type="text" id="notes" maxlength="200" placeholder="Optional..."></div>
       </div>
-      <div class="form-group"><label for="loggedBy">Your Guild Name *</label><input type="text" id="loggedBy" required maxlength="40" placeholder="e.g., Aeryn"></div>
+      <div class="row">
+        <div class="form-group"><label for="itemPrice">Price *</label><input type="text" id="itemPrice" required placeholder="e.g., 2,100,000"></div>
+        <div class="form-group"><label for="itemQty">Quantity *</label><input type="number" id="itemQty" required min="1" step="1" placeholder="e.g., 5"></div>
+      </div>
+      <div class="row">
+        <div class="form-group"><label for="notes">Notes</label><input type="text" id="notes" maxlength="200" placeholder="Optional..."></div>
+        <div class="form-group"><label for="loggedBy">Your Guild Name *</label><input type="text" id="loggedBy" required maxlength="40" placeholder="e.g., Aeryn"></div>
+      </div>
       <button type="submit" id="submitBtn">💾 Save Observation</button>
     </form>
   </div>
@@ -280,7 +287,7 @@
   <div class="card">
     <h2>📋 Price Observations <span class="h2-right" id="obsCount"></span></h2>
     <div class="filter-bar">
-      <input type="text" id="searchInput" placeholder="🔍 Search items or loggers...">
+      <input type="text" id="searchInput" placeholder="🔍 Search items, sellers, or loggers...">
       <select id="sourceFilter">
         <option value="">All Sources</option>
         <option value="Merchant">Merchant</option>
@@ -305,6 +312,7 @@
             <th class="star-col"></th>
             <th data-sort="date">Date</th>
             <th data-sort="item">Item</th>
+            <th data-sort="seller">Seller</th>
             <th data-sort="location">Source</th>
             <th data-sort="price">Price</th>
             <th data-sort="qty">Qty</th>
@@ -335,12 +343,10 @@
         <select id="analyticsItem"><option value="">-- Choose an item --</option></select>
       </div>
     </div>
-    <div style="display:flex; align-items:center; gap:15px; margin-bottom:14px;" id="analyticsHeaderImg">
-        <!-- Image will go here -->
-    </div>
+    <div style="display:flex; align-items:center; gap:15px; margin-bottom:14px;" id="analyticsHeaderImg"></div>
     <div class="stat-grid" style="margin-top:8px;">
       <div class="stat-box"><div class="value" id="avgPrice">-</div><div class="label">Avg. Price</div></div>
-      <div class="stat-box"><div class="value" id="totalQty">-</div><div class="label">Total Qty Seen</div></div>
+      <div class="stat-box"><div class="value" id="totalQty">-</div><div class="label">Est. Market Stock</div></div>
       <div class="stat-box"><div class="value" id="minPrice">-</div><div class="label">All-Time Low</div></div>
       <div class="stat-box"><div class="value" id="maxPrice">-</div><div class="label">All-Time High</div></div>
       <div class="stat-box"><div class="value" id="trendBox">-</div><div class="label">7d Trend</div></div>
@@ -404,6 +410,7 @@
     <h2>🛡️ Admin Panel <span class="badge-admin">ADMIN</span></h2>
     <div class="admin-tabs">
       <button data-admin-tab="images" class="active">🖼️ Images</button>
+      <button data-admin-tab="sellerRequests">🔄 Name Changes</button>
       <button data-admin-tab="backups">Backups</button>
       <button data-admin-tab="cleanup">Data Cleanup</button>
       <button data-admin-tab="trash">Trash</button>
@@ -418,6 +425,11 @@
         <button id="btnApprovedImgs" class="small secondary" style="border-radius:6px;">Approved / Locked</button>
       </div>
       <div id="imageReviewList"></div>
+    </div>
+
+    <div id="admin-tab-sellerRequests" class="admin-tab-content">
+      <p class="data-hint" style="margin-bottom:10px;">Approve player name changes. Old names will automatically update to the new name in all views.</p>
+      <div id="nameChangeList"></div>
     </div>
 
     <div id="admin-tab-backups" class="admin-tab-content">
@@ -484,7 +496,7 @@
   </div>
 </section>
 
-<div class="footer">Last Chaos Guild Price Tracker v3 • Live • Firebase + GitHub Actions backups</div>
+<div class="footer">Last Chaos Guild Price Tracker v4 • Live • Firebase + GitHub Actions backups</div>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -523,7 +535,7 @@ const EVENT_COLORS = {
 };
 // ============================================================
 
-let observations = [], itemNotes = [], itemImages = {}, trash = [], auditLog = [], settings = {};
+let observations = [], itemNotes = [], itemImages = {}, sellerAliases = {}, nameChangeRequests = [], trash = [], auditLog = [], settings = {};
 let db, auth, currentUid = null, isAdmin = false;
 let readOnly = false, chartInstance = null;
 let pendingDeleteIds = [];
@@ -539,7 +551,7 @@ let dateRangeFilter = 'all';
 let cropperInstance = null;
 let pendingBase64Img = null;
 let currentItemKey = null;
-let adminImageFilter = 'pending'; // 'pending' or 'approved'
+let adminImageFilter = 'pending';
 
 const $ = id => document.getElementById(id);
 const itemNameInput = $('itemName');
@@ -547,10 +559,16 @@ const itemSuggest = $('itemSuggest');
 const loggedByInput = $('loggedBy');
 const toastEl = $('toast');
 const dropzone = $('dropzone');
+const priceInput = $('itemPrice');
 
 function getPrice(o) { return typeof o.price === 'number' ? o.price : (o.low || 0); }
 function getQty(o) { return typeof o.qty === 'number' ? o.qty : 1; }
 function getSafeKey(name) { return encodeURIComponent(normalize(name)).replace(/%/g, ''); }
+
+function getCanonicalSeller(name) {
+  if (!name) return 'Unknown';
+  return sellerAliases[name] || name;
+}
 
 const savedTheme = localStorage.getItem('lc_theme');
 if (savedTheme) document.body.dataset.theme = savedTheme;
@@ -587,11 +605,24 @@ function levenshtein(a,b) {
   return dp[m][n];
 }
 function getUniqueItems() { return [...new Set(observations.map(o => o.item).filter(Boolean))].sort(); }
+function getUniqueSellers() { 
+  const list = observations.map(o => o.seller).filter(Boolean);
+  Object.values(sellerAliases).forEach(v => list.push(v));
+  return [...new Set(list)].sort();
+}
 function setConnection(state, label) {
   const el = $('connBadge');
   el.className = 'conn ' + state;
   el.textContent = label || (state==='live' ? '🟢 Live' : state==='offline' ? '🔴 Offline' : '⏳ Connecting…');
 }
+
+// Price Input Comma Formatting
+priceInput.addEventListener('input', function(e) {
+  let value = this.value.replace(/,/g, '');
+  if (!isNaN(value) && value !== '') {
+    this.value = Number(value).toLocaleString('en-US');
+  }
+});
 
 // Get Image HTML helper
 function getIconHtml(itemName) {
@@ -650,7 +681,7 @@ dropzone.addEventListener('drop', (e) => {
   }
 });
 dropzone.addEventListener('click', () => {
-  if (pendingBase64Img) return; // handled by button
+  if (pendingBase64Img) return;
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
@@ -694,9 +725,7 @@ function openCropModal(imageSrc) {
   
   document.getElementById('cropConfirmBtn').onclick = () => {
     if (!cropperInstance) return;
-    // Create a tiny canvas to save space
     const canvas = cropperInstance.getCroppedCanvas({ width: 128, height: 128 });
-    // Compress as JPEG quality 0.7
     const base64 = canvas.toDataURL('image/jpeg', 0.7);
     
     pendingBase64Img = base64;
@@ -707,6 +736,35 @@ function openCropModal(imageSrc) {
   };
 }
 
+// Request Name Change
+$('reqNameChangeBtn').addEventListener('click', (e) => {
+  e.preventDefault();
+  const currentName = $('sellerName').value.trim();
+  openModal(`
+    <h3>🔄 Request Player Name Change</h3>
+    <p class="data-hint" style="margin-bottom:15px;">If a player changed their in-game name, request an update here. An admin will map the old name to the new name.</p>
+    <div class="form-group"><label>Old Name</label><input type="text" id="reqOldName" value="${esc(currentName)}" required></div>
+    <div class="form-group"><label>New Name</label><input type="text" id="reqNewName" required placeholder="e.g., NewPlayerName"></div>
+    <div class="modal-actions">
+      <button class="secondary" onclick="window.__closeModal()">Cancel</button>
+      <button id="submitNameChangeBtn">Submit Request</button>
+    </div>
+  `);
+  $('submitNameChangeBtn').onclick = async () => {
+    const oldName = $('reqOldName').value.trim();
+    const newName = $('reqNewName').value.trim();
+    if (!oldName || !newName) return showToast('Both names required.', 'error');
+    try {
+      await push(ref(db, 'nameChangeRequests'), {
+        oldName, newName, requestedBy: loggedByInput.value.trim() || 'Unknown', date: Date.now()
+      });
+      showToast('Request sent to admins!', 'success');
+      closeModal();
+    } catch(err) { showToast('Error: ' + err.message, 'error'); }
+  };
+});
+
+// Autocomplete Logic
 itemNameInput.addEventListener('input', () => {
   const items = getUniqueItems();
   const q = normalize(itemNameInput.value);
@@ -831,7 +889,18 @@ async function boot() {
   
   onValue(ref(db, 'itemImages'), snap => {
     itemImages = snap.val() || {};
-    renderAll(); // Re-render to show new images
+    renderAll();
+  });
+
+  onValue(ref(db, 'sellerAliases'), snap => {
+    sellerAliases = snap.val() || {};
+    renderAll();
+  });
+
+  onValue(ref(db, 'nameChangeRequests'), snap => {
+    const val = snap.val() || {};
+    nameChangeRequests = Object.entries(val).map(([id, data]) => ({ id, ...data })).sort((a,b) => (b.date||0) - (a.date||0));
+    if (activeView === 'admin') renderAdminView();
   });
 
   onValue(ref(db, 'observations'), snap => {
@@ -840,11 +909,13 @@ async function boot() {
       .sort((a,b) => (b.date||0) - (a.date||0));
     renderAll();
   }, err => showToast('Read failed: ' + err.message, 'error'));
+  
   onValue(ref(db, 'itemNotes'), snap => {
     const val = snap.val() || {};
     itemNotes = Object.entries(val).map(([id, data]) => ({ id, ...data }));
     renderAnalyticsView();
   });
+  
   onValue(ref(db, 'settings'), snap => {
     settings = snap.val() || {};
     readOnly = settings.readOnlyMode === true;
@@ -869,15 +940,6 @@ function subscribeAdmin() {
 function updateAdminUI() {
   $('adminTabBtn').style.display = isAdmin ? 'inline-block' : 'none';
   if (isAdmin) { subscribeAdmin(); renderAdminView(); }
-  
-  if (!isAdmin && currentUid) {
-    $('authError').style.display = 'block';
-    $('authError').innerHTML = `<strong>🛡️ Admin Setup:</strong> You are not recognized as an admin.<br><br>
-      1. Your exact Firebase UID is: <code style="font-size:1.1em;font-weight:bold;padding:4px 8px;background:rgba(0,0,0,0.1);border-radius:4px;">${esc(currentUid)}</code><br><br>
-      2. Paste this UID into the <code>ADMIN_UIDS</code> array inside your HTML file.<br>
-      3. Add it in the Firebase Database under <code>admins</code> -> <code>${esc(currentUid)}: true</code>.<br>
-      4. Refresh the page.`;
-  }
 }
 
 function updateReadOnlyUI() {
@@ -899,13 +961,15 @@ $('priceForm').addEventListener('submit', async e => {
   e.preventDefault();
   if (readOnly) return showToast('Read-only mode is active.', 'error');
   let item = itemNameInput.value.trim().replace(/\s+/g, ' ');
+  let seller = $('sellerName').value.trim();
+  seller = getCanonicalSeller(seller); // Apply any name change mapping
   const location = $('location').value;
-  const price = parseFloat($('itemPrice').value);
+  const price = parseFloat(priceInput.value.replace(/,/g, ''));
   const qty = parseInt($('itemQty').value, 10);
   const event = $('event').value, notes = $('notes').value.trim();
   const loggedBy = loggedByInput.value.trim();
 
-  if (!item || !location || isNaN(price) || isNaN(qty) || !loggedBy) return showToast('Fill all required fields.', 'error');
+  if (!item || !seller || !location || isNaN(price) || isNaN(qty) || !loggedBy) return showToast('Fill all required fields.', 'error');
 
   const items = getUniqueItems();
   const normalized = normalize(item);
@@ -925,10 +989,24 @@ $('priceForm').addEventListener('submit', async e => {
     }
   }
 
+  // Deduplication check for stock
+  const thirtyMinsAgo = Date.now() - 30 * 60000;
+  const recentDup = observations.find(o => 
+    normalize(o.item) === normalize(item) && 
+    normalize(getCanonicalSeller(o.seller)) === normalize(seller) && 
+    getPrice(o) === price && 
+    getQty(o) === qty && 
+    (o.date || 0) > thirtyMinsAgo
+  );
+  if (recentDup) {
+    if (!confirm(`⚠️ Someone just logged this exact price (${fmtNum(price)}) and quantity (${qty}) for ${seller} in the last 30 minutes.\n\nAre you sure you want to log it again?`)) {
+      return;
+    }
+  }
+
   $('submitBtn').disabled = true;
   
   try {
-    // 1. If there is a pending image, save it to itemImages (if not locked)
     if (pendingBase64Img) {
       const key = getSafeKey(item);
       const existing = itemImages[key];
@@ -936,7 +1014,7 @@ $('priceForm').addEventListener('submit', async e => {
         await set(ref(db, 'itemImages/' + key), {
           item: item,
           base64: pendingBase64Img,
-          status: 'pending', // Requires admin approval
+          status: 'pending',
           uploadedBy: loggedBy,
           updatedAt: Date.now()
         });
@@ -945,8 +1023,7 @@ $('priceForm').addEventListener('submit', async e => {
       }
     }
 
-    // 2. Save the observation
-    await push(ref(db, 'observations'), { item, location, price, qty, event: event||null, notes: notes||null, loggedBy, date: serverTimestamp(), uid: currentUid });
+    await push(ref(db, 'observations'), { item, seller, location, price, qty, event: event||null, notes: notes||null, loggedBy, date: serverTimestamp(), uid: currentUid });
     
     localStorage.setItem('lc_guild_logger_name', loggedBy);
     $('priceForm').reset();
@@ -959,6 +1036,17 @@ $('priceForm').addEventListener('submit', async e => {
 const savedName = localStorage.getItem('lc_guild_logger_name');
 if (savedName) loggedByInput.value = savedName;
 loggedByInput.addEventListener('change', () => localStorage.setItem('lc_guild_logger_name', loggedByInput.value.trim()));
+
+// Populate Datalist
+function populateSellersDatalist() {
+  const list = $('sellersDatalist');
+  list.innerHTML = '';
+  getUniqueSellers().forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    list.appendChild(opt);
+  });
+}
 
 document.querySelectorAll('.main-tabs button').forEach(btn => {
   btn.addEventListener('click', () => switchView(btn.dataset.view));
@@ -1021,7 +1109,7 @@ function computeOutliers() {
 }
 
 function filterObservations() {
-  const q = ($('searchInput').value || '').toLowerCase();
+  const q = normalize($('searchInput').value);
   const src = $('sourceFilter').value;
   const outliers = computeOutliers();
   const onlyOutliers = $('outliersOnly').checked;
@@ -1031,7 +1119,8 @@ function filterObservations() {
     cutoff = Date.now() - days * 86400000;
   }
   return observations.filter(o => {
-    if (q && !(o.item||'').toLowerCase().includes(q) && !(o.loggedBy||'').toLowerCase().includes(q)) return false;
+    const canonicalSeller = getCanonicalSeller(o.seller).toLowerCase();
+    if (q && !(o.item||'').toLowerCase().includes(q) && !canonicalSeller.includes(q) && !(o.loggedBy||'').toLowerCase().includes(q)) return false;
     if (src && o.location !== src) return false;
     if (cutoff && (o.date||0) < cutoff) return false;
     if (onlyOutliers && !outliers.has(o.id)) return false;
@@ -1044,6 +1133,7 @@ function sortObservations(list) {
     let av, bv;
     if (sortKey === 'price') { av = getPrice(a); bv = getPrice(b); }
     else if (sortKey === 'qty') { av = getQty(a); bv = getQty(b); }
+    else if (sortKey === 'seller') { av = getCanonicalSeller(a.seller); bv = getCanonicalSeller(b.seller); }
     else { av = a[sortKey]; bv = b[sortKey]; }
     
     if (sortKey === 'date') { av = av||0; bv = bv||0; }
@@ -1080,10 +1170,12 @@ function renderPricesView() {
       const badgeClass = o.location === 'Trader Roy' ? 'badge-trader' : o.location === 'Merchant' ? 'badge-merchant' : 'badge-event';
       const isStarred = watchlist.includes(o.item);
       const isOutlier = outliers.has(o.id);
+      const seller = getCanonicalSeller(o.seller);
       tr.innerHTML = `
         <td class="star-col"><button class="pin-btn ${isStarred?'active':''}" data-item="${esc(o.item)}">${isStarred?'⭐':'☆'}</button></td>
         <td style="white-space:nowrap;font-size:0.8rem;">${fmtDate(o.date)}</td>
         <td><div class="item-name-cell">${getIconHtml(o.item)}<strong><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);" data-jump="${esc(o.item)}">${esc(o.item)}</a></strong></div>${isOutlier?' <span class="outlier-icon" title="Possible outlier (3× median)">⚠️</span>':''}</td>
+        <td>${esc(seller)}</td>
         <td><span class="badge ${badgeClass}">${esc(o.location)}</span></td>
         <td>${fmtNum(getPrice(o))}</td>
         <td>${getQty(o)}</td>
@@ -1109,6 +1201,7 @@ function renderPricesView() {
   }
   renderPagination(totalPages, filtered.length);
   renderWatchlist();
+  populateSellersDatalist();
 }
 
 function renderPagination(totalPages, totalItems) {
@@ -1241,7 +1334,6 @@ function renderAnalyticsView() {
     return;
   }
 
-  // Add header image
   const iconHtml = getIconHtml(selected);
   if (iconHtml.includes('img')) {
       headerImg.innerHTML = `${iconHtml.replace('32px','64px').replace('item-icon','item-icon large')} <h2 style="margin:0;border:none;padding:0;">${esc(selected)}</h2>`;
@@ -1251,8 +1343,14 @@ function renderAnalyticsView() {
 
   const itemObs = observations.filter(o => o.item === selected).slice().sort((a,b) => (a.date||0) - (b.date||0));
   const prices = itemObs.map(o => getPrice(o)).filter(n => typeof n === 'number');
-  const qtys = itemObs.map(o => getQty(o));
-  const totalQtySeen = qtys.reduce((a,b)=>a+b, 0);
+
+  // Deduplicate stock calculation by finding latest report per seller
+  const latestObsPerSeller = {};
+  itemObs.forEach(o => {
+    const sellerKey = getCanonicalSeller(o.seller) + '|' + o.location;
+    latestObsPerSeller[sellerKey] = o; // Because itemObs is sorted by date ascending, the last one is the most recent
+  });
+  const totalQtySeen = Object.values(latestObsPerSeller).reduce((sum, o) => sum + getQty(o), 0);
 
   $('avgPrice').textContent = fmtNum(prices.length ? prices.reduce((a,b)=>a+b,0) / prices.length : null);
   $('totalQty').textContent = fmtNum(totalQtySeen);
@@ -1400,7 +1498,7 @@ function renderDealsView() {
       <div class="deal-row">
         <div class="deal-info">
           <div class="item-name"><a href="#" data-jump="${esc(d.item)}" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light); display:flex; align-items:center; gap:8px;">${getIconHtml(d.item)} ${esc(d.item)}</a></div>
-          <div class="deal-meta">Current: ${fmtNum(d.currentPrice)} • Avg: ${fmtNum(d.avg)} • Source: ${esc(d.latest.location)} • By: ${esc(d.latest.loggedBy||'-')}</div>
+          <div class="deal-meta">Current: ${fmtNum(d.currentPrice)} • Avg: ${fmtNum(d.avg)} • Seller: ${esc(getCanonicalSeller(d.latest.seller))} • Source: ${esc(d.latest.location)}</div>
         </div>
         <div class="deal-pct">-${d.discount.toFixed(1)}%</div>
       </div>
@@ -1509,7 +1607,7 @@ async function deleteObs(id) {
   if (!confirm(`Soft-delete "${obs.item}"?\nRecoverable from Trash.`)) return;
   try {
     await softDelete(obs, 'Single delete');
-    await logAction('delete', { item: obs.item, price: getPrice(obs), loggedBy: obs.loggedBy });
+    await logAction('delete', { item: obs.item, price: getPrice(obs), seller: obs.seller, loggedBy: obs.loggedBy });
     showToast('Soft-deleted.', 'success');
   } catch (err) { showToast('Delete failed: ' + err.message, 'error'); }
 }
@@ -1519,6 +1617,7 @@ function editObs(obs) {
   const html = `
     <h3>✏️ Edit Observation</h3>
     <div class="form-group"><label>Item</label><input type="text" id="editItem" value="${esc(obs.item)}"></div>
+    <div class="form-group"><label>Seller</label><input type="text" id="editSeller" value="${esc(getCanonicalSeller(obs.seller))}"></div>
     <div class="row">
       <div class="form-group"><label>Source</label>
         <select id="editLocation">${['Merchant','Trader Roy','Auction House','Player Trade','Other'].map(s => `<option value="${s}" ${obs.location===s?'selected':''}>${s}</option>`).join('')}</select>
@@ -1528,7 +1627,7 @@ function editObs(obs) {
       </div>
     </div>
     <div class="row">
-      <div class="form-group"><label>Price</label><input type="number" id="editPrice" value="${getPrice(obs)}" min="0" step="any"></div>
+      <div class="form-group"><label>Price</label><input type="text" id="editPrice" value="${fmtNum(getPrice(obs))}" required></div>
       <div class="form-group"><label>Quantity</label><input type="number" id="editQty" value="${getQty(obs)}" min="1" step="1"></div>
     </div>
     <div class="form-group"><label>Notes</label><input type="text" id="editNotes" value="${esc(obs.notes||'')}" maxlength="200"></div>
@@ -1540,22 +1639,31 @@ function editObs(obs) {
     </div>
   `;
   openModal(html);
+  
+  $('editPrice').addEventListener('input', function() {
+    let value = this.value.replace(/,/g, '');
+    if (!isNaN(value) && value !== '') {
+      this.value = Number(value).toLocaleString('en-US');
+    }
+  });
+
   $('saveEditBtn').onclick = async () => {
     const newData = {
       item: $('editItem').value.trim(),
+      seller: $('editSeller').value.trim(),
       location: $('editLocation').value,
       event: $('editEvent').value || null,
-      price: parseFloat($('editPrice').value),
+      price: parseFloat($('editPrice').value.replace(/,/g, '')),
       qty: parseInt($('editQty').value, 10),
       notes: $('editNotes').value.trim() || null,
       loggedBy: $('editLoggedBy').value.trim(),
       lastEditedAt: Date.now(),
       lastEditedBy: loggedByInput.value.trim() || currentUid
     };
-    if (!newData.item || isNaN(newData.price) || isNaN(newData.qty)) return showToast('Item, price, and qty required.', 'error');
+    if (!newData.item || isNaN(newData.price) || isNaN(newData.qty) || !newData.seller) return showToast('Item, seller, price, and qty required.', 'error');
     try {
       await update(ref(db, 'observations/' + obs.id), newData);
-      await logAction('edit', { item: newData.item, reason: $('editReason').value.trim() || 'no reason given', before: { item: obs.item, price: getPrice(obs), qty: getQty(obs) }, after: { item: newData.item, price: newData.price, qty: newData.qty } });
+      await logAction('edit', { item: newData.item, reason: $('editReason').value.trim() || 'no reason given', before: { item: obs.item, price: getPrice(obs), qty: getQty(obs), seller: obs.seller }, after: { item: newData.item, price: newData.price, qty: newData.qty, seller: newData.seller } });
       showToast('Updated.', 'success');
       closeModal();
     } catch (err) { showToast('Edit failed: ' + err.message, 'error'); }
@@ -1638,7 +1746,7 @@ async function previewRestore(filename) {
 }
 
 // ============================================================
-// ADMIN IMAGE MANAGEMENT
+// ADMIN MANAGEMENT (Images, Name Changes, Cleanup)
 // ============================================================
 $('btnPendingImgs').addEventListener('click', () => {
   adminImageFilter = 'pending';
@@ -1725,8 +1833,53 @@ async function toggleLockImage(key) {
   } catch (err) { showToast('Failed: ' + err.message, 'error'); }
 }
 
+function renderNameChanges() {
+  const list = $('nameChangeList');
+  if (nameChangeRequests.length === 0) {
+    list.innerHTML = '<p class="empty-state">No pending name change requests.</p>';
+    return;
+  }
+  list.innerHTML = nameChangeRequests.map(req => `
+    <div class="admin-image-card">
+      <div class="info">
+        <strong>${esc(req.oldName)} → ${esc(req.newName)}</strong>
+        <div class="data-hint">Requested by: ${esc(req.requestedBy)} • ${fmtDate(req.date)}</div>
+      </div>
+      <div class="actions">
+        <button class="success small" data-approve-name="${req.id}" data-old="${esc(req.oldName)}" data-new="${esc(req.newName)}">✅ Approve</button>
+        <button class="danger small" data-reject-name="${req.id}">🗑️ Reject</button>
+      </div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('button[data-approve-name]').forEach(b => b.addEventListener('click', () => approveNameChange(b.dataset.approveName, b.dataset.old, b.dataset.new)));
+  list.querySelectorAll('button[data-reject-name]').forEach(b => b.addEventListener('click', () => rejectNameChange(b.dataset.rejectName)));
+}
+
+async function approveNameChange(reqId, oldName, newName) {
+  if (!isAdmin) return;
+  try {
+    await update(ref(db, 'sellerAliases'), { [oldName]: newName });
+    await remove(ref(db, 'nameChangeRequests/' + reqId));
+    await logAction('approve_name_change', { oldName, newName });
+    showToast(`Mapped ${oldName} to ${newName}.`, 'success');
+    renderAdminView();
+  } catch (err) { showToast('Error: ' + err.message, 'error'); }
+}
+
+async function rejectNameChange(reqId) {
+  if (!isAdmin) return;
+  if (!confirm('Reject and delete this name change request?')) return;
+  try {
+    await remove(ref(db, 'nameChangeRequests/' + reqId));
+    await logAction('reject_name_change', { reqId });
+    showToast('Request rejected.', 'success');
+    renderAdminView();
+  } catch (err) { showToast('Error: ' + err.message, 'error'); }
+}
+
 // ============================================================
-// END ADMIN IMAGE MANAGEMENT
+// END ADMIN MANAGEMENT
 // ============================================================
 
 $('previewDeleteBtn').addEventListener('click', () => {
@@ -1747,7 +1900,7 @@ $('previewDeleteBtn').addEventListener('click', () => {
   const box = $('deletePreview');
   box.style.display = 'block';
   if (!matches.length) { box.innerHTML = '<p>No matches.</p>'; $('executeDeleteBtn').disabled = true; return; }
-  box.innerHTML = `<p><strong>${matches.length} observations match.</strong></p><table style="margin-top:8px;font-size:0.78rem;"><thead><tr><th>Date</th><th>Item</th><th>Source</th><th>Price</th><th>Qty</th><th>By</th></tr></thead><tbody>${matches.slice(0,100).map(o => `<tr><td>${fmtDate(o.date)}</td><td>${esc(o.item)}</td><td>${esc(o.location)}</td><td>${fmtNum(getPrice(o))}</td><td>${getQty(o)}</td><td>${esc(o.loggedBy||'-')}</td></tr>`).join('')}</tbody></table>${matches.length>100?`<p style="margin-top:6px;">... and ${matches.length-100} more.</p>`:''}`;
+  box.innerHTML = `<p><strong>${matches.length} observations match.</strong></p><table style="margin-top:8px;font-size:0.78rem;"><thead><tr><th>Date</th><th>Item</th><th>Seller</th><th>Source</th><th>Price</th><th>Qty</th><th>By</th></tr></thead><tbody>${matches.slice(0,100).map(o => `<tr><td>${fmtDate(o.date)}</td><td>${esc(o.item)}</td><td>${esc(getCanonicalSeller(o.seller))}</td><td>${esc(o.location)}</td><td>${fmtNum(getPrice(o))}</td><td>${getQty(o)}</td><td>${esc(o.loggedBy||'-')}</td></tr>`).join('')}</tbody></table>${matches.length>100?`<p style="margin-top:6px;">... and ${matches.length-100} more.</p>`:''}`;
   $('executeDeleteBtn').disabled = false;
 });
 $('executeDeleteBtn').addEventListener('click', async () => {
@@ -1868,13 +2021,14 @@ function renderAdminView() {
   if ($('backupsList').querySelector('.empty-state') && $('backupsList').querySelector('.empty-state').textContent === 'Loading...') loadBackupsList();
   refreshMergeDropdowns();
   renderAdminImages();
+  renderNameChanges();
 
   const trashEl = $('trashList');
   if (!trash.length) trashEl.innerHTML = '<p class="empty-state">Trash is empty.</p>';
   else trashEl.innerHTML = trash.map(t => `
     <div class="trash-item">
       <div>
-        <strong>${esc(t.item)}</strong> — ${fmtNum(getPrice(t))} (x${getQty(t)}) <span style="color:var(--text-light);">(${esc(t.location)})</span>
+        <strong>${esc(t.item)}</strong> — ${fmtNum(getPrice(t))} (x${getQty(t)}) • <em>${esc(getCanonicalSeller(t.seller))}</em>
         <div class="meta">Deleted by ${esc(t.deletedBy||'?')} • ${fmtDate(t.deletedAt)} • ${esc(t.deletedReason||'')}</div>
       </div>
       <div style="display:flex;gap:6px;">
@@ -1892,7 +2046,7 @@ function renderAdminView() {
     <div class="audit-row">
       <div>${fmtDate(a.timestamp)}</div>
       <div><strong>${esc(a.username||'?')}</strong></div>
-      <div class="audit-action ${a.action === 'delete' || a.action === 'bulk_delete' || a.action === 'permanent_delete' || a.action === 'empty_trash' || a.action === 'reject_image' ? 'delete' : a.action === 'edit' ? 'edit' : a.action === 'merge' ? 'merge' : a.action === 'restore' || a.action === 'restore_item' || a.action === 'approve_image' ? 'restore' : ''}">${esc(a.action)}</div>
+      <div class="audit-action ${a.action === 'delete' || a.action === 'bulk_delete' || a.action === 'permanent_delete' || a.action === 'empty_trash' || a.action === 'reject_image' || a.action === 'reject_name_change' ? 'delete' : a.action === 'edit' ? 'edit' : a.action === 'merge' ? 'merge' : a.action === 'restore' || a.action === 'restore_item' || a.action === 'approve_image' || a.action === 'approve_name_change' ? 'restore' : ''}">${esc(a.action)}</div>
       <div style="font-size:0.78rem;color:var(--text-light);">${esc(JSON.stringify(a.details||{}).slice(0, 200))}</div>
     </div>
   `).join('');
@@ -1913,6 +2067,7 @@ document.querySelector('#modal-root .modal-backdrop').addEventListener('click', 
 
 function renderAll() {
   updateDropzoneUI();
+  populateSellersDatalist();
   if (activeView === 'prices') renderPricesView();
   else if (activeView === 'analytics') renderAnalyticsView();
   else if (activeView === 'deals') renderDealsView();
