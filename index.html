@@ -123,8 +123,9 @@
   .confidence-bar { height:8px; background:var(--border); border-radius:4px; overflow:hidden; margin-top:6px; }
   .confidence-fill { height:100%; transition:width .3s, background .3s; border-radius:4px; }
   .watchlist-empty { color:var(--text-light); font-size:0.88rem; font-style:italic; }
-  .pin-btn { background:transparent; border:none; cursor:pointer; font-size:1rem; padding:2px 4px; color:var(--text-light); }
+  .pin-btn { background:transparent; border:none; cursor:pointer; font-size:1rem; padding:2px 4px; color:var(--text-light); transition:color .2s; }
   .pin-btn.active { color:#f59e0b; }
+  .pin-btn:hover { color:#f59e0b; }
   .star-col { width:32px; text-align:center; }
   .outlier-icon { color:var(--warning); cursor:help; }
   .deal-row, .mover-row { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px solid var(--border); font-size:0.9rem; gap:10px; }
@@ -194,16 +195,18 @@
   .seller-link { color:var(--primary); text-decoration:none; font-weight:600; cursor:pointer; border-bottom:1px dotted var(--primary); }
   .seller-link:hover { color:var(--primary-hover); }
 
-  /* Item Directory Grid */
+  /* Item Directory & Watchlist Grid */
   .items-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px; margin-top:16px; }
-  .item-card { background:var(--card-bg); border-radius:12px; border:1px solid var(--border); padding:16px; cursor:pointer; transition:transform .2s, box-shadow .2s, border-color .2s; display:flex; flex-direction:column; gap:12px; }
+  .item-card { background:var(--card-bg); border-radius:12px; border:1px solid var(--border); padding:16px; cursor:pointer; transition:transform .2s, box-shadow .2s, border-color .2s; display:flex; flex-direction:column; gap:12px; position:relative; }
   .item-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.1); border-color:var(--primary); }
-  .item-card-header { display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border); padding-bottom:12px; }
+  .item-card-header { display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border); padding-bottom:12px; padding-right:30px; }
   .item-card-header h3 { margin:0; font-size:1.1rem; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item-card-star { position:absolute; top:16px; right:16px; font-size:1.3rem; cursor:pointer; z-index:10; transition:transform 0.1s; }
+  .item-card-star:hover { transform:scale(1.2); }
   .item-card-body { display:flex; flex-direction:column; gap:6px; font-size:0.85rem; }
   .item-card-row { display:flex; justify-content:space-between; }
   .item-card-row span:first-child { color:var(--text-light); }
-  .item-card-row span:last-child { font-weight:600; color:var(--text); }
+  .item-card-row span:last-child { font-weight:600; color:var(--text); text-align:right; }
   .item-card-stock { margin-top:6px; padding-top:8px; border-top:1px dashed var(--border); }
 
   /* Recent Logs */
@@ -722,6 +725,7 @@ function showToast(msg, type='') {
   showToast._t = setTimeout(() => { toastEl.className = 'toast ' + type; }, 3500);
 }
 function fmtNum(n) { if (n == null || isNaN(n)) return '-'; return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+function fmtMoney(n) { if (n == null || isNaN(n)) return '-'; return '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 function fmtDate(v) { if (!v) return '-'; const d = new Date(v); if (isNaN(d)) return '-'; return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
 function fmtDateShort(v) { if (!v) return '-'; const d = new Date(v); if (isNaN(d)) return '-'; return d.toLocaleDateString([], { month:'short', day:'numeric' }); }
 function esc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
@@ -822,7 +826,7 @@ function renderRecentLogs() {
         return `
           <div class="recent-log-item">
             <div>
-              <strong>${esc(getCanonicalSeller(o.seller))}</strong> - ${fmtNum(getPrice(o))} (x${getQty(o)}) <span class="badge ${o.location==='Trader Roy'?'badge-trader':o.location==='Merchant'?'badge-merchant':'badge-event'}">${esc(o.location)}</span>
+              <strong>${esc(getCanonicalSeller(o.seller))}</strong> - ${fmtMoney(getPrice(o))} (x${getQty(o)}) <span class="badge ${o.location==='Trader Roy'?'badge-trader':o.location==='Merchant'?'badge-merchant':'badge-event'}">${esc(o.location)}</span>
               <span style="font-size:0.75rem;color:var(--text-light);margin-left:8px;">${fmtDate(o.date)}</span>
             </div>
             <button class="seen-btn ${seen?'seen':''}" onclick="window.toggleSeen('${o.id}')">
@@ -849,14 +853,19 @@ window.showSellerItemHistory = function(sellerName, itemName) {
   const latestQty = getQty(sObs[sObs.length-1]);
   const maxQty = Math.max(...sObs.map(o => getQty(o)));
   
+  const priceDisplay = minP === maxP ? fmtMoney(minP) : `${fmtMoney(minP)} - ${fmtMoney(maxP)}`;
+  const valLow = latestQty * minP;
+  const valHigh = latestQty * maxP;
+  const valDisplay = valLow === valHigh ? fmtMoney(valLow) : `${fmtMoney(valLow)} - ${fmtMoney(valHigh)}`;
+
   let html = `
     <h3>👤 ${esc(seller)} — ${esc(itemName)}</h3>
     <div class="stat-grid" style="margin-bottom:16px;">
       <div class="stat-box"><div class="value">${fmtNum(latestQty)}</div><div class="label">Current Qty</div></div>
       <div class="stat-box"><div class="value">${fmtNum(maxQty)}</div><div class="label">Max Qty</div></div>
-      <div class="stat-box"><div class="value">${fmtNum(avgP)}</div><div class="label">Avg Price</div></div>
-      <div class="stat-box"><div class="value">${fmtNum(minP)} - ${fmtNum(maxP)}</div><div class="label">Price Range</div></div>
-      <div class="stat-box"><div class="value">${fmtNum(latestQty * minP)} - ${fmtNum(latestQty * maxP)}</div><div class="label">Stock Value Range</div></div>
+      <div class="stat-box"><div class="value">${fmtMoney(avgP)}</div><div class="label">Avg Price</div></div>
+      <div class="stat-box"><div class="value">${priceDisplay}</div><div class="label">Price Range</div></div>
+      <div class="stat-box"><div class="value">${valDisplay}</div><div class="label">Stock Value Range</div></div>
     </div>
     
     <h4 style="margin-bottom:8px; color:var(--text);">Price History</h4>
@@ -874,7 +883,7 @@ window.showSellerItemHistory = function(sellerName, itemName) {
           ${sObs.slice().reverse().map(o => `
             <tr>
               <td>${fmtDate(o.date)}</td>
-              <td>${fmtNum(getPrice(o))}</td>
+              <td>${fmtMoney(getPrice(o))}</td>
               <td>${getQty(o)}</td>
               <td>${esc(o.location)}</td>
             </tr>
@@ -928,6 +937,8 @@ window.showSellerProfile = function(sellerName) {
     totalLowVal += (i.latestQty * i.lowPrice);
     totalHighVal += (i.latestQty * i.highPrice);
   });
+  
+  const totalValDisplay = totalLowVal === totalHighVal ? fmtMoney(totalLowVal) : `${fmtMoney(totalLowVal)} - ${fmtMoney(totalHighVal)}`;
 
   let html = `
     <h3>👤 Seller Profile: ${esc(seller)}</h3>
@@ -936,7 +947,7 @@ window.showSellerProfile = function(sellerName) {
       <div class="stat-box"><div class="value">${sortedItems.length}</div><div class="label">Unique Items</div></div>
       <div class="stat-box" style="grid-column: span 2;">
         <div class="label">Total Stock Value Range</div>
-        <div class="value" style="font-size:1.1rem; color:var(--primary);">${fmtNum(totalLowVal)} - ${fmtNum(totalHighVal)}</div>
+        <div class="value" style="font-size:1.1rem; color:var(--primary);">${totalValDisplay}</div>
         <div class="label" style="font-size:0.7rem;">Based on current stock of ${fmtNum(totalStock)} items</div>
       </div>
     </div>
@@ -958,13 +969,15 @@ window.showSellerProfile = function(sellerName) {
           ${sortedItems.map(i => {
             const lowVal = i.latestQty * i.lowPrice;
             const highVal = i.latestQty * i.highPrice;
+            const priceDisp = i.lowPrice === i.highPrice ? fmtMoney(i.lowPrice) : `${fmtMoney(i.lowPrice)} - ${fmtMoney(i.highPrice)}`;
+            const valDisp = lowVal === highVal ? fmtMoney(lowVal) : `${fmtMoney(lowVal)} - ${fmtMoney(highVal)}`;
             return `
               <tr>
                 <td><strong>${esc(i.item)}</strong></td>
                 <td>${fmtNum(i.latestQty)}</td>
                 <td>${fmtNum(i.maxQty)}</td>
-                <td><span style="color:var(--success)">${fmtNum(i.lowPrice)}</span> - <span style="color:var(--danger)">${fmtNum(i.highPrice)}</span></td>
-                <td><strong>${fmtNum(lowVal)} - ${fmtNum(highVal)}</strong></td>
+                <td><span style="color:var(--success)">${priceDisp}</span></td>
+                <td><strong>${valDisp}</strong></td>
                 <td>${i.count}</td>
               </tr>
             `;
@@ -1471,7 +1484,7 @@ $('priceForm').addEventListener('submit', async e => {
   );
   
   if (exactDup) {
-    return showToast(`This exact data (Qty: ${qty}, Price: ${fmtNum(price)}) was already logged for ${canonicalSeller} today. If the stock has changed, please enter the new quantity.`, 'error');
+    return showToast(`This exact data (Qty: ${qty}, Price: ${fmtMoney(price)}) was already logged for ${canonicalSeller} today. If the stock has changed, please enter the new quantity.`, 'error');
   }
 
   $('submitBtn').disabled = true;
@@ -1663,7 +1676,7 @@ function renderPricesView() {
         </td>
         <td><a class="seller-link" data-seller="${esc(seller)}">${esc(seller)}</a></td>
         <td><span class="badge ${badgeClass}">${esc(o.location)}</span></td>
-        <td>${fmtNum(getPrice(o))}</td>
+        <td>${fmtMoney(getPrice(o))}</td>
         <td>${getQty(o)}</td>
         <td>${o.event ? esc(o.event) : '-'}</td>
         <td style="font-size:0.8rem;">${esc(o.loggedBy||'-')}</td>
@@ -1674,7 +1687,6 @@ function renderPricesView() {
       
       tr.querySelector('.seller-link').addEventListener('click', (e) => {
         e.preventDefault();
-        // In prices view, clicking seller opens full profile
         window.showSellerProfile(seller);
       });
 
@@ -1700,16 +1712,81 @@ function renderPricesView() {
   renderPagination(totalPages, filtered.length);
 }
 
+function createItemCardHtml(item, dateRangeFilter, isWatchlist) {
+  let cutoff = 0;
+  if (dateRangeFilter !== 'all') {
+    const days = { '1d':1, '7d':7, '30d':30, '90d':90 }[dateRangeFilter] || 0;
+    cutoff = Date.now() - days * 86400000;
+  }
+  
+  const allTimeObs = observations.filter(o => o.item === item);
+  const obs = allTimeObs.filter(o => (o.date || 0) >= cutoff);
+  
+  const prices = obs.map(o => getPrice(o)).filter(n => typeof n === 'number');
+  const minP = prices.length ? Math.min(...prices) : 0;
+  const maxP = prices.length ? Math.max(...prices) : 0;
+  const avgP = prices.length ? prices.reduce((a,b)=>a+b,0)/prices.length : 0;
+  
+  const latestPerSeller = {};
+  obs.sort((a,b) => (a.date||0) - (b.date||0)).forEach(o => {
+    latestPerSeller[getCanonicalSeller(o.seller)] = o;
+  });
+  const totalQty = Object.values(latestPerSeller).reduce((sum, o) => sum + getQty(o), 0);
+  const totalSellers = Object.keys(latestPerSeller).length;
+  
+  const lowVal = totalQty * minP;
+  const highVal = totalQty * maxP;
+  const priceDisplay = minP === maxP ? fmtMoney(minP) : `${fmtMoney(minP)} - ${fmtMoney(maxP)}`;
+  const valDisplay = lowVal === highVal ? fmtMoney(lowVal) : `${fmtMoney(lowVal)} - ${fmtMoney(highVal)}`;
+  
+  // Dynamic Trend
+  let trendHtml = '<span class="trend-flat">—</span>';
+  if (prices.length > 0 && allTimeObs.length > 0) {
+    const allTimePrices = allTimeObs.map(o => getPrice(o));
+    const allTimeAvg = allTimePrices.reduce((a,b)=>a+b,0)/allTimePrices.length;
+    if (allTimeAvg > 0) {
+      const trendPct = ((avgP - allTimeAvg) / allTimeAvg) * 100;
+      const cls = trendPct > 2 ? 'trend-up' : trendPct < -2 ? 'trend-down' : 'trend-flat';
+      trendHtml = `<span class="${cls}">${trendPct>0?'▲':trendPct<0?'▼':'■'} ${Math.abs(trendPct).toFixed(1)}%</span>`;
+    }
+  }
+  
+  // Dynamic Best Deal
+  let bestDealHtml = '-';
+  if (prices.length > 0) {
+    const minInRange = Math.min(...prices);
+    const sellersWithMin = [...new Set(obs.filter(o => getPrice(o) === minInRange).map(o => getCanonicalSeller(o.seller)))];
+    if (sellersWithMin.length > 0) {
+      bestDealHtml = `<span style="color:var(--success);font-weight:bold;">${fmtMoney(minInRange)}</span> by ${sellersWithMin.join(', ')}`;
+    }
+  }
+  
+  const isStarred = watchlist.includes(item);
+  
+  return `
+    <div class="item-card" onclick="window.jumpToItem('${esc(item)}')">
+      <div class="item-card-star ${isStarred?'active':''}" onclick="event.stopPropagation(); toggleWatchlist('${esc(item)}')">${isStarred?'⭐':'☆'}</div>
+      <div class="item-card-header">
+        ${getIconHtml(item).replace('32px','40px').replace('item-icon','item-icon large')}
+        <h3>${esc(item)}</h3>
+      </div>
+      <div class="item-card-body">
+        <div class="item-card-row"><span>Avg Price:</span> <span>${fmtMoney(avgP)}</span></div>
+        <div class="item-card-row"><span>Price Range:</span> <span>${priceDisplay}</span></div>
+        <div class="item-card-row"><span>Total Sellers:</span> <span>${totalSellers}</span></div>
+        <div class="item-card-row"><span>Market Stock:</span> <span>${fmtNum(totalQty)}</span></div>
+        <div class="item-card-row"><span>Trend (vs All-Time):</span> <span>${trendHtml}</span></div>
+        <div class="item-card-row"><span>Best Deal:</span> <span>${bestDealHtml}</span></div>
+        <div class="item-card-row item-card-stock"><span>Market Value:</span> <span>${valDisplay}</span></div>
+      </div>
+    </div>
+  `;
+}
+
 function renderItemsView() {
   if (activeView !== 'items') return;
   const grid = $('itemsGrid');
   const emptyMsg = $('itemsEmptyMsg');
-  
-  let cutoff = 0;
-  if (itemsDateRangeFilter !== 'all') {
-    const days = { '1d':1, '7d':7, '30d':30, '90d':90 }[itemsDateRangeFilter] || 0;
-    cutoff = Date.now() - days * 86400000;
-  }
   
   const q = normalize(itemsSearch);
   const allItems = getUniqueItems().filter(it => normalize(it).includes(q));
@@ -1718,60 +1795,12 @@ function renderItemsView() {
   let renderedCount = 0;
   
   allItems.forEach(item => {
-    const itemObs = observations.filter(o => o.item === item && (o.date || 0) >= cutoff);
-    if (itemObs.length === 0) return;
+    const cutoff = itemsDateRangeFilter === 'all' ? 0 : Date.now() - ({'1d':1,'7d':7,'30d':30,'90d':90}[itemsDateRangeFilter] || 0) * 86400000;
+    const hasData = observations.some(o => o.item === item && (o.date || 0) >= cutoff);
+    if (!hasData) return;
     
     renderedCount++;
-    
-    const prices = itemObs.map(o => getPrice(o)).filter(n => typeof n === 'number');
-    const minP = prices.length ? Math.min(...prices) : 0;
-    const maxP = prices.length ? Math.max(...prices) : 0;
-    const avgP = prices.length ? prices.reduce((a,b)=>a+b,0)/prices.length : 0;
-    
-    const latestPerSeller = {};
-    itemObs.sort((a,b) => (a.date||0) - (b.date||0)).forEach(o => {
-      latestPerSeller[getCanonicalSeller(o.seller)] = o;
-    });
-    const totalQty = Object.values(latestPerSeller).reduce((sum, o) => sum + getQty(o), 0);
-    const lowVal = totalQty * minP;
-    const highVal = totalQty * maxP;
-    
-    const trend = computeTrend(itemObs);
-    let trendHtml = '<span class="trend-flat">—</span>';
-    if (trend) {
-      const cls = trend.pct > 2 ? 'trend-up' : trend.pct < -2 ? 'trend-down' : 'trend-flat';
-      trendHtml = `<span class="${cls}">${trend.pct>0?'▲':trend.pct<0?'▼':'■'} ${Math.abs(trend.pct).toFixed(1)}%</span>`;
-    }
-    
-    const recent14d = observations.filter(o => o.item === item && (o.date || 0) >= Date.now() - 14*86400000);
-    let dealHtml = '-';
-    if (recent14d.length >= 3) {
-      const avg14 = recent14d.reduce((s,o)=>s+getPrice(o),0) / recent14d.length;
-      const currentLow = Math.min(...recent14d.map(o => getPrice(o)));
-      const discount = ((avg14 - currentLow) / avg14) * 100;
-      if (discount >= 15) {
-        dealHtml = `<span style="color:var(--success);font-weight:bold;">-${discount.toFixed(1)}%</span>`;
-      }
-    }
-    
-    const card = document.createElement('div');
-    card.className = 'item-card';
-    card.innerHTML = `
-      <div class="item-card-header">
-        ${getIconHtml(item).replace('32px','40px').replace('item-icon','item-icon large')}
-        <h3>${esc(item)}</h3>
-      </div>
-      <div class="item-card-body">
-        <div class="item-card-row"><span>Avg Price:</span> <span>${fmtNum(avgP)}</span></div>
-        <div class="item-card-row"><span>Price Range:</span> <span><span style="color:var(--success)">${fmtNum(minP)}</span> - <span style="color:var(--danger)">${fmtNum(maxP)}</span></span></div>
-        <div class="item-card-row"><span>Market Stock:</span> <span>${fmtNum(totalQty)}</span></div>
-        <div class="item-card-row"><span>7d Trend:</span> <span>${trendHtml}</span></div>
-        <div class="item-card-row"><span>Best Deal (vs 14d avg):</span> <span>${dealHtml}</span></div>
-        <div class="item-card-row item-card-stock"><span>Market Value:</span> <span>${fmtNum(lowVal)} - ${fmtNum(highVal)}</span></div>
-      </div>
-    `;
-    card.addEventListener('click', () => window.jumpToItem(item));
-    grid.appendChild(card);
+    grid.innerHTML += createItemCardHtml(item, itemsDateRangeFilter, false);
   });
   
   emptyMsg.style.display = renderedCount === 0 ? 'block' : 'none';
@@ -1782,12 +1811,6 @@ function renderWatchlistView() {
   const grid = $('watchlistGrid');
   const emptyMsg = $('watchlistEmptyMsg');
   const pagEl = $('watchlistPagination');
-  
-  let cutoff = 0;
-  if (watchlistDateRange !== 'all') {
-    const days = { '1d':1, '7d':7, '30d':30, '90d':90 }[watchlistDateRange] || 0;
-    cutoff = Date.now() - days * 86400000;
-  }
   
   const q = normalize(watchlistSearch);
   const filteredItems = watchlist.filter(it => normalize(it).includes(q));
@@ -1807,36 +1830,7 @@ function renderWatchlistView() {
   
   grid.innerHTML = '';
   paged.forEach(item => {
-    const itemObs = observations.filter(o => o.item === item && (o.date || 0) >= cutoff);
-    const prices = itemObs.map(o => getPrice(o)).filter(n => typeof n === 'number');
-    const minP = prices.length ? Math.min(...prices) : 0;
-    const maxP = prices.length ? Math.max(...prices) : 0;
-    const avgP = prices.length ? prices.reduce((a,b)=>a+b,0)/prices.length : 0;
-    
-    const latestPerSeller = {};
-    itemObs.sort((a,b) => (a.date||0) - (b.date||0)).forEach(o => {
-      latestPerSeller[getCanonicalSeller(o.seller)] = o;
-    });
-    const totalQty = Object.values(latestPerSeller).reduce((sum, o) => sum + getQty(o), 0);
-    const lowVal = totalQty * minP;
-    const highVal = totalQty * maxP;
-    
-    const card = document.createElement('div');
-    card.className = 'item-card';
-    card.innerHTML = `
-      <div class="item-card-header">
-        ${getIconHtml(item).replace('32px','40px').replace('item-icon','item-icon large')}
-        <h3>${esc(item)}</h3>
-      </div>
-      <div class="item-card-body">
-        <div class="item-card-row"><span>Avg Price:</span> <span>${fmtNum(avgP)}</span></div>
-        <div class="item-card-row"><span>Price Range:</span> <span><span style="color:var(--success)">${fmtNum(minP)}</span> - <span style="color:var(--danger)">${fmtNum(maxP)}</span></span></div>
-        <div class="item-card-row"><span>Market Stock:</span> <span>${fmtNum(totalQty)}</span></div>
-        <div class="item-card-row item-card-stock"><span>Market Value:</span> <span>${fmtNum(lowVal)} - ${fmtNum(highVal)}</span></div>
-      </div>
-    `;
-    card.addEventListener('click', () => window.jumpToItem(item));
-    grid.appendChild(card);
+    grid.innerHTML += createItemCardHtml(item, watchlistDateRange, true);
   });
   
   let pagesHtml = '';
@@ -1895,6 +1889,8 @@ function renderSellersView() {
       totalHighVal += i.latestQty * i.high;
     });
     
+    const valDisplay = totalLowVal === totalHighVal ? fmtMoney(totalLowVal) : `${fmtMoney(totalLowVal)} - ${fmtMoney(totalHighVal)}`;
+    
     const card = document.createElement('div');
     card.className = 'item-card';
     card.innerHTML = `
@@ -1905,7 +1901,7 @@ function renderSellersView() {
       <div class="item-card-body">
         <div class="item-card-row"><span>Unique Items:</span> <span>${Object.keys(items).length}</span></div>
         <div class="item-card-row"><span>Observations:</span> <span>${sObs.length}</span></div>
-        <div class="item-card-row item-card-stock"><span>Est. Total Stock Value:</span> <span>${fmtNum(totalLowVal)} - ${fmtNum(totalHighVal)}</span></div>
+        <div class="item-card-row item-card-stock"><span>Est. Total Stock Value:</span> <span>${valDisplay}</span></div>
       </div>
     `;
     card.addEventListener('click', () => window.showSellerProfile(seller));
@@ -2038,10 +2034,10 @@ function renderAnalyticsView() {
   });
   const totalQtySeen = Object.values(latestObsPerSeller).reduce((sum, o) => sum + getQty(o), 0);
 
-  $('avgPrice').textContent = fmtNum(prices.length ? prices.reduce((a,b)=>a+b,0) / prices.length : null);
+  $('avgPrice').textContent = fmtMoney(prices.length ? prices.reduce((a,b)=>a+b,0) / prices.length : null);
   $('totalQty').textContent = fmtNum(totalQtySeen);
-  $('minPrice').textContent = fmtNum(minPrice);
-  $('maxPrice').textContent = fmtNum(maxPrice);
+  $('minPrice').textContent = fmtMoney(minPrice);
+  $('maxPrice').textContent = fmtMoney(maxPrice);
 
   const lowVal = totalQtySeen * minPrice;
   const highVal = totalQtySeen * maxPrice;
@@ -2049,8 +2045,13 @@ function renderAnalyticsView() {
   const diffPct = lowVal > 0 ? (diffVal / lowVal) * 100 : 0;
 
   if (totalQtySeen > 0 && prices.length > 0) {
-    $('marketValRange').textContent = `${fmtNum(lowVal)} - ${fmtNum(highVal)}`;
-    $('marketValDetail').innerHTML = `Variance: ${fmtNum(diffVal)} (${diffPct.toFixed(1)}%)`;
+    if (lowVal === highVal) {
+      $('marketValRange').textContent = fmtMoney(lowVal);
+      $('marketValDetail').textContent = '';
+    } else {
+      $('marketValRange').textContent = `${fmtMoney(lowVal)} - ${fmtMoney(highVal)}`;
+      $('marketValDetail').innerHTML = `Variance: ${fmtMoney(diffVal)} (${diffPct.toFixed(1)}%)`;
+    }
   } else {
     $('marketValRange').textContent = '-';
     $('marketValDetail').textContent = '';
@@ -2072,9 +2073,9 @@ function renderAnalyticsView() {
 
   const bt = computeBestTimes(itemObs);
   $('bestBuyDay').textContent = bt.buyDay ? bt.buyDay.day : '—';
-  $('bestBuyDayDetail').textContent = bt.buyDay ? `avg ${fmtNum(bt.buyDay.avg)}` : '';
+  $('bestBuyDayDetail').textContent = bt.buyDay ? `avg ${fmtMoney(bt.buyDay.avg)}` : '';
   $('bestSellDay').textContent = bt.sellDay ? bt.sellDay.day : '—';
-  $('bestSellDayDetail').textContent = bt.sellDay ? `avg ${fmtNum(bt.sellDay.avg)}` : '';
+  $('bestSellDayDetail').textContent = bt.sellDay ? `avg ${fmtMoney(bt.sellDay.avg)}` : '';
 
   renderChart(itemObs);
   renderEventImpact(itemObs);
@@ -2149,7 +2150,7 @@ function renderEventImpact(itemObs) {
   body.innerHTML = rows.map(r => {
     const pctStr = r.pct == null ? '-' : `${r.pct > 0 ? '+' : ''}${r.pct.toFixed(1)}%`;
     const cls = r.pct == null ? '' : r.pct > 5 ? 'trend-up' : r.pct < -5 ? 'trend-down' : '';
-    return `<tr><td><span class="badge badge-event">${esc(r.ev)}</span></td><td>${r.count}</td><td>${fmtNum(r.avg)}</td><td class="${cls}">${pctStr}</td></tr>`;
+    return `<tr><td><span class="badge badge-event">${esc(r.ev)}</span></td><td>${r.count}</td><td>${fmtMoney(r.avg)}</td><td class="${cls}">${pctStr}</td></tr>`;
   }).join('');
   $('eventImpactEmpty').style.display = rows.length ? 'none' : 'block';
 }
@@ -2202,13 +2203,15 @@ function renderSellerBreakdown(allItemObs) {
   body.innerHTML = sorted.map(s => {
     const lowVal = s.latestQty * s.lowPrice;
     const highVal = s.latestQty * s.highPrice;
+    const priceDisp = s.lowPrice === s.highPrice ? fmtMoney(s.lowPrice) : `${fmtMoney(s.lowPrice)} - ${fmtMoney(s.highPrice)}`;
+    const valDisp = lowVal === highVal ? fmtMoney(lowVal) : `${fmtMoney(lowVal)} - ${fmtMoney(highVal)}`;
     return `
       <tr>
         <td><a class="seller-link" data-seller="${esc(s.seller)}">${esc(s.seller)}</a></td>
         <td><strong>${fmtNum(s.latestQty)}</strong></td>
         <td>${fmtNum(s.maxQty)}</td>
-        <td><span style="color:var(--success)">${fmtNum(s.lowPrice)}</span> - <span style="color:var(--danger)">${fmtNum(s.highPrice)}</span></td>
-        <td><strong>${fmtNum(lowVal)} - ${fmtNum(highVal)}</strong></td>
+        <td>${priceDisp}</td>
+        <td><strong>${valDisp}</strong></td>
         <td style="font-size:0.8rem;color:var(--text-light);">${fmtDate(s.latestDate)}</td>
       </tr>
     `;
@@ -2264,7 +2267,7 @@ function renderDealsView() {
       <div class="deal-row">
         <div class="deal-info">
           <div class="item-name"><a href="#" data-jump="${esc(d.item)}" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light); display:flex; align-items:center; gap:8px;">${getIconHtml(d.item)} ${esc(d.item)}</a></div>
-          <div class="deal-meta">Current: ${fmtNum(d.currentPrice)} • Avg: ${fmtNum(d.avg)} • Seller: <a class="seller-link" data-seller="${esc(getCanonicalSeller(d.latest.seller))}">${esc(getCanonicalSeller(d.latest.seller))}</a> • Source: ${esc(d.latest.location)}</div>
+          <div class="deal-meta">Current: ${fmtMoney(d.currentPrice)} • Avg: ${fmtMoney(d.avg)} • Seller: <a class="seller-link" data-seller="${esc(getCanonicalSeller(d.latest.seller))}">${esc(getCanonicalSeller(d.latest.seller))}</a> • Source: ${esc(d.latest.location)}</div>
         </div>
         <div class="deal-pct">-${d.discount.toFixed(1)}%</div>
       </div>
@@ -2295,7 +2298,7 @@ function renderDealsView() {
   const renderMover = (m, isGainer) => `
     <div class="mover-row">
       <div style="flex:1;min-width:0;"><a href="#" data-jump="${esc(m.item)}" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light); display:flex; align-items:center; gap:8px;">${getIconHtml(m.item)} ${esc(m.item)}</a></div>
-      <div class="deal-meta" style="font-size:0.78rem;color:var(--text-light);">${fmtNum(m.pAvg)} → ${fmtNum(m.rAvg)}</div>
+      <div class="deal-meta" style="font-size:0.78rem;color:var(--text-light);">${fmtMoney(m.pAvg)} → ${fmtMoney(m.rAvg)}</div>
       <div class="change-pct ${isGainer ? 'trend-up' : 'trend-down'}">${m.change>0?'▲':'▼'} ${Math.abs(m.change).toFixed(1)}%</div>
     </div>
   `;
@@ -2477,9 +2480,9 @@ async function previewRestore(filename) {
         <div class="stat-box"><div class="value" style="color:var(--success);">${willAdd.length}</div><div class="label">Will be re-added</div></div>
         <div class="stat-box"><div class="value" style="color:var(--warning);">${willChange.length}</div><div class="label">Will be changed</div></div>
       </div>
-      ${willRemove.length ? `<details style="margin-top:10px;"><summary>Will remove (${willRemove.length})</summary><div class="diff-box"><ul>${willRemove.slice(0,20).map(o => `<li class="diff-remove">${esc(o.item)} @ ${fmtNum(getPrice(o))} (${esc(o.loggedBy||'-')})</li>`).join('')}${willRemove.length>20?`<li>... and ${willRemove.length-20} more</li>`:''}</ul></div></details>` : ''}
-      ${willAdd.length ? `<details style="margin-top:10px;"><summary>Will add back (${willAdd.length})</summary><div class="diff-box"><ul>${willAdd.slice(0,20).map(o => `<li class="diff-add">${esc(o.item)} @ ${fmtNum(getPrice(o))} (${esc(o.loggedBy||'-')})</li>`).join('')}${willAdd.length>20?`<li>... and ${willAdd.length-20} more</li>`:''}</ul></div></details>` : ''}
-      ${willChange.length ? `<details style="margin-top:10px;"><summary>Will change (${willChange.length})</summary><div class="diff-box"><ul>${willChange.slice(0,20).map(x => `<li class="diff-change">${esc(x.data.item)}: ${fmtNum(getPrice(x.cur))} → ${fmtNum(getPrice(x.data))}</li>`).join('')}${willChange.length>20?`<li>... and ${willChange.length-20} more</li>`:''}</ul></div></details>` : ''}
+      ${willRemove.length ? `<details style="margin-top:10px;"><summary>Will remove (${willRemove.length})</summary><div class="diff-box"><ul>${willRemove.slice(0,20).map(o => `<li class="diff-remove">${esc(o.item)} @ ${fmtMoney(getPrice(o))} (${esc(o.loggedBy||'-')})</li>`).join('')}${willRemove.length>20?`<li>... and ${willRemove.length-20} more</li>`:''}</ul></div></details>` : ''}
+      ${willAdd.length ? `<details style="margin-top:10px;"><summary>Will add back (${willAdd.length})</summary><div class="diff-box"><ul>${willAdd.slice(0,20).map(o => `<li class="diff-add">${esc(o.item)} @ ${fmtMoney(getPrice(o))} (${esc(o.loggedBy||'-')})</li>`).join('')}${willAdd.length>20?`<li>... and ${willAdd.length-20} more</li>`:''}</ul></div></details>` : ''}
+      ${willChange.length ? `<details style="margin-top:10px;"><summary>Will change (${willChange.length})</summary><div class="diff-box"><ul>${willChange.slice(0,20).map(x => `<li class="diff-change">${esc(x.data.item)}: ${fmtMoney(getPrice(x.cur))} → ${fmtMoney(getPrice(x.data))}</li>`).join('')}${willChange.length>20?`<li>... and ${willChange.length-20} more</li>`:''}</ul></div></details>` : ''}
       <div class="banner warn" style="margin-top:12px;">⚠️ This will DELETE ALL current observations and replace with the backup. Cannot be undone.</div>
       <div class="modal-actions">
         <button class="secondary" onclick="window.__closeModal()">Cancel</button>
@@ -2717,7 +2720,7 @@ $('previewDeleteBtn').addEventListener('click', () => {
   const box = $('deletePreview');
   box.style.display = 'block';
   if (!matches.length) { box.innerHTML = '<p>No matches.</p>'; $('executeDeleteBtn').disabled = true; return; }
-  box.innerHTML = `<p><strong>${matches.length} observations match.</strong></p><table style="margin-top:8px;font-size:0.78rem;"><thead><tr><th>Date</th><th>Item</th><th>Seller</th><th>Source</th><th>Price</th><th>Qty</th><th>By</th></tr></thead><tbody>${matches.slice(0,100).map(o => `<tr><td>${fmtDate(o.date)}</td><td>${esc(o.item)}</td><td>${esc(getCanonicalSeller(o.seller))}</td><td>${esc(o.location)}</td><td>${fmtNum(getPrice(o))}</td><td>${getQty(o)}</td><td>${esc(o.loggedBy||'-')}</td></tr>`).join('')}</tbody></table>${matches.length>100?`<p style="margin-top:6px;">... and ${matches.length-100} more.</p>`:''}`;
+  box.innerHTML = `<p><strong>${matches.length} observations match.</strong></p><table style="margin-top:8px;font-size:0.78rem;"><thead><tr><th>Date</th><th>Item</th><th>Seller</th><th>Source</th><th>Price</th><th>Qty</th><th>By</th></tr></thead><tbody>${matches.slice(0,100).map(o => `<tr><td>${fmtDate(o.date)}</td><td>${esc(o.item)}</td><td>${esc(getCanonicalSeller(o.seller))}</td><td>${esc(o.location)}</td><td>${fmtMoney(getPrice(o))}</td><td>${getQty(o)}</td><td>${esc(o.loggedBy||'-')}</td></tr>`).join('')}</tbody></table>${matches.length>100?`<p style="margin-top:6px;">... and ${matches.length-100} more.</p>`:''}`;
   $('executeDeleteBtn').disabled = false;
 });
 $('executeDeleteBtn').addEventListener('click', async () => {
@@ -2845,7 +2848,7 @@ function renderAdminView() {
   else trashEl.innerHTML = trash.map(t => `
     <div class="trash-item">
       <div>
-        <strong>${esc(t.item)}</strong> — ${fmtNum(getPrice(t))} (x${getQty(t)}) • <em><a class="seller-link" data-seller="${esc(getCanonicalSeller(t.seller))}">${esc(getCanonicalSeller(t.seller))}</a></em>
+        <strong>${esc(t.item)}</strong> — ${fmtMoney(getPrice(t))} (x${getQty(t)}) • <em><a class="seller-link" data-seller="${esc(getCanonicalSeller(t.seller))}">${esc(getCanonicalSeller(t.seller))}</a></em>
         <div class="meta">Deleted by ${esc(t.deletedBy||'?')} • ${fmtDate(t.deletedAt)} • ${esc(t.deletedReason||'')}</div>
       </div>
       <div style="display:flex;gap:6px;">
