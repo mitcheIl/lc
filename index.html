@@ -378,7 +378,16 @@
     </div>
 
     <div id="sellerBreakdownSection">
-      <h3 style="font-size:0.95rem;margin-bottom:6px;color:var(--primary);">👤 Seller Breakdown</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:10px;">
+        <h3 style="font-size:0.95rem; color:var(--primary); margin:0;">👤 Seller Breakdown</h3>
+        <select id="sellerDateRangeFilter" style="width:auto; padding:4px 8px; font-size:0.8rem; margin:0;">
+          <option value="all">All time</option>
+          <option value="7d">Last 7 days</option>
+          <option value="30d">Last 30 days</option>
+          <option value="90d">Last 90 days</option>
+          <option value="365d">Last year</option>
+        </select>
+      </div>
       <p class="data-hint" style="margin-bottom:10px;">Click a seller's name to view their full profile.</p>
       <div class="scrollable" style="max-height:400px;">
         <table class="event-table" id="sellerBreakdownTable">
@@ -386,7 +395,7 @@
             <tr>
               <th>Player</th>
               <th>Current Qty</th>
-              <th>Max Qty Seen</th>
+              <th>Max Qty</th>
               <th>Price Range</th>
               <th>Stock Value Range</th>
               <th>Last Seen</th>
@@ -395,7 +404,7 @@
           <tbody id="sellerBreakdownBody"></tbody>
         </table>
       </div>
-      <p id="sellerBreakdownEmpty" class="empty-state" style="display:none;">No seller data available.</p>
+      <p id="sellerBreakdownEmpty" class="empty-state" style="display:none;">No seller data available for this timeframe.</p>
     </div>
   </div>
 
@@ -583,6 +592,7 @@ let sortKey = 'date', sortDir = 'desc';
 let currentPage = 1;
 const PAGE_SIZE = 25;
 let dateRangeFilter = 'all';
+let sellerDateRangeFilter = 'all';
 
 // Image upload state
 let cropperInstance = null;
@@ -680,15 +690,16 @@ window.showSellerProfile = function(sellerName) {
   
   if (sObs.length === 0) return showToast('No data for this seller.', 'error');
   
-  // Aggregate stats per item
+  // Sort ascending by date to ensure we grab the latest stats correctly
+  sObs.sort((a,b) => (a.date||0) - (b.date||0));
+
   const items = {};
   sObs.forEach(o => {
     const p = getPrice(o);
     const q = getQty(o);
-    const date = o.date || 0;
     
     if (!items[o.item]) {
-      items[o.item] = { item: o.item, maxQty: 0, lowPrice: Infinity, highPrice: 0, latestQty: 0, latestDate: 0, count: 0 };
+      items[o.item] = { item: o.item, maxQty: 0, lowPrice: Infinity, highPrice: 0, latestQty: 0, count: 0 };
     }
     const i = items[o.item];
     if (q > i.maxQty) i.maxQty = q;
@@ -696,21 +707,30 @@ window.showSellerProfile = function(sellerName) {
     if (p > i.highPrice) i.highPrice = p;
     i.count++;
     
-    if (date >= i.latestDate) {
-      i.latestDate = date;
-      i.latestQty = q;
-    }
+    i.latestQty = q;
   });
   
   const sortedItems = Object.values(items).sort((a,b) => b.latestQty - a.latestQty);
   const totalStock = sortedItems.reduce((sum, i) => sum + i.latestQty, 0);
   
+  let totalLowVal = 0;
+  let totalHighVal = 0;
+  
+  sortedItems.forEach(i => {
+    totalLowVal += (i.latestQty * i.lowPrice);
+    totalHighVal += (i.latestQty * i.highPrice);
+  });
+
   let html = `
     <h3>👤 Seller Profile: ${esc(seller)}</h3>
     <div class="stat-grid" style="margin-bottom:16px;">
-      <div class="stat-box"><div class="value">${sObs.length}</div><div class="label">Total Observations</div></div>
+      <div class="stat-box"><div class="value">${sObs.length}</div><div class="label">Observations</div></div>
       <div class="stat-box"><div class="value">${sortedItems.length}</div><div class="label">Unique Items</div></div>
-      <div class="stat-box"><div class="value">${fmtNum(totalStock)}</div><div class="label">Total Current Stock</div></div>
+      <div class="stat-box" style="grid-column: span 2;">
+        <div class="label">Total Stock Value Range</div>
+        <div class="value" style="font-size:1.1rem; color:var(--primary);">${fmtNum(totalLowVal)} - ${fmtNum(totalHighVal)}</div>
+        <div class="label" style="font-size:0.7rem;">Based on current stock of ${fmtNum(totalStock)} items</div>
+      </div>
     </div>
     
     <h4 style="margin-bottom:8px; color:var(--text);">Item Breakdown</h4>
@@ -722,19 +742,25 @@ window.showSellerProfile = function(sellerName) {
             <th>Current Qty</th>
             <th>Max Qty</th>
             <th>Price Range</th>
+            <th>Stock Value Range</th>
             <th>Logs</th>
           </tr>
         </thead>
         <tbody>
-          ${sortedItems.map(i => `
-            <tr>
-              <td><strong>${esc(i.item)}</strong></td>
-              <td>${fmtNum(i.latestQty)}</td>
-              <td>${fmtNum(i.maxQty)}</td>
-              <td><span style="color:var(--success)">${fmtNum(i.lowPrice)}</span> - <span style="color:var(--danger)">${fmtNum(i.highPrice)}</span></td>
-              <td>${i.count}</td>
-            </tr>
-          `).join('')}
+          ${sortedItems.map(i => {
+            const lowVal = i.latestQty * i.lowPrice;
+            const highVal = i.latestQty * i.highPrice;
+            return `
+              <tr>
+                <td><strong>${esc(i.item)}</strong></td>
+                <td>${fmtNum(i.latestQty)}</td>
+                <td>${fmtNum(i.maxQty)}</td>
+                <td><span style="color:var(--success)">${fmtNum(i.lowPrice)}</span> - <span style="color:var(--danger)">${fmtNum(i.highPrice)}</span></td>
+                <td><strong>${fmtNum(lowVal)} - ${fmtNum(highVal)}</strong></td>
+                <td>${i.count}</td>
+              </tr>
+            `;
+          }).join('')}
         </tbody>
       </table>
     </div>
@@ -1301,6 +1327,10 @@ $('dateRangeFilter').addEventListener('change', e => { dateRangeFilter = e.targe
 $('outliersOnly').addEventListener('change', () => { currentPage = 1; renderPricesView(); });
 $('analyticsSearch').addEventListener('input', populateAnalyticsDropdown);
 $('analyticsItem').addEventListener('change', renderAnalyticsView);
+$('sellerDateRangeFilter').addEventListener('change', (e) => {
+  sellerDateRangeFilter = e.target.value;
+  renderAnalyticsView();
+});
 
 document.querySelectorAll('#priceTable th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
@@ -1721,15 +1751,26 @@ function renderEventImpact(itemObs) {
   $('eventImpactEmpty').style.display = rows.length ? 'none' : 'block';
 }
 
-function renderSellerBreakdown(itemObs) {
+function renderSellerBreakdown(allItemObs) {
   const body = $('sellerBreakdownBody');
+  
+  let cutoff = 0;
+  if (sellerDateRangeFilter !== 'all') {
+    const days = { '7d':7, '30d':30, '90d':90, '365d':365 }[sellerDateRangeFilter] || 0;
+    cutoff = Date.now() - days * 86400000;
+  }
+  
+  // Filter observations by the specific date range
+  const itemObs = allItemObs.filter(o => (o.date || 0) >= cutoff);
   const stats = {};
   
+  // Sort ascending to ensure we always grab the latest stats
+  itemObs.sort((a,b) => (a.date||0) - (b.date||0));
+
   itemObs.forEach(o => {
     const seller = getCanonicalSeller(o.seller);
     const p = getPrice(o);
     const q = getQty(o);
-    const date = o.date || 0;
     
     if (!stats[seller]) {
       stats[seller] = {
@@ -1743,10 +1784,9 @@ function renderSellerBreakdown(itemObs) {
     if (p < s.lowPrice) s.lowPrice = p;
     if (p > s.highPrice) s.highPrice = p;
     
-    if (date >= s.latestDate) {
-      s.latestDate = date;
-      s.latestQty = q;
-    }
+    // Since sorted asc, this will naturally update to the latest
+    s.latestQty = q;
+    s.latestDate = o.date || 0;
   });
 
   const sorted = Object.values(stats).sort((a,b) => b.latestQty - a.latestQty);
