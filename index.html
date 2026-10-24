@@ -420,9 +420,11 @@
 
     <div id="admin-tab-images" class="admin-tab-content active">
       <p class="data-hint" style="margin-bottom:10px;">Approve user-submitted item images. Lock an image to prevent guildies from overwriting a perfect icon.</p>
-      <div class="admin-tabs" style="margin-bottom:15px; border-bottom:none;">
+      <div class="admin-tabs" style="margin-bottom:15px; border-bottom:none; flex-wrap:wrap; gap:8px;">
         <button id="btnPendingImgs" class="active small" style="background:var(--primary); color:white; border-radius:6px;">Pending Review</button>
         <button id="btnApprovedImgs" class="small secondary" style="border-radius:6px;">Approved / Locked</button>
+        <button id="btnAllImgs" class="small secondary" style="border-radius:6px;">All Items / Manage</button>
+        <input type="text" id="adminImgSearch" placeholder="Search items..." style="width:auto; flex:1; min-width:150px; max-width:250px; padding:6px 12px; font-size:0.85rem; display:none;">
       </div>
       <div id="imageReviewList"></div>
     </div>
@@ -702,7 +704,7 @@ function handleImageFile(file) {
   reader.readAsDataURL(file);
 }
 
-function openCropModal(imageSrc) {
+function openCropModal(imageSrc, onCropCallback) {
   const html = `
     <h3>✂️ Crop Item Icon</h3>
     <p class="data-hint" style="margin-bottom:10px;">Crop the item to a square. We will automatically resize it to 128x128 to save space.</p>
@@ -730,13 +732,52 @@ function openCropModal(imageSrc) {
     const canvas = cropperInstance.getCroppedCanvas({ width: 128, height: 128 });
     const base64 = canvas.toDataURL('image/jpeg', 0.7);
     
-    pendingBase64Img = base64;
-    updateDropzoneUI();
+    if (onCropCallback) {
+      onCropCallback(base64);
+    } else {
+      pendingBase64Img = base64;
+      updateDropzoneUI();
+    }
+    
     closeModal();
     cropperInstance.destroy();
     cropperInstance = null;
   };
 }
+
+// Admin direct image upload
+window.adminUploadImage = function(itemName) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        openCropModal(ev.target.result, async (base64) => {
+          const key = getSafeKey(itemName);
+          try {
+            await set(ref(db, 'itemImages/' + key), {
+              item: itemName,
+              base64: base64,
+              status: 'approved',
+              uploadedBy: loggedByInput.value.trim() || 'Admin',
+              updatedAt: Date.now(),
+              locked: itemImages[key]?.locked || false
+            });
+            showToast('Image updated successfully.', 'success');
+            if (activeView === 'admin') renderAdminImages();
+          } catch (err) {
+            showToast('Failed to save image: ' + err.message, 'error');
+          }
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  input.click();
+};
 
 // Request Name Change
 $('reqNameChangeBtn').addEventListener('click', (e) => {
@@ -1250,7 +1291,16 @@ function renderPricesView() {
       tr.innerHTML = `
         <td class="star-col"><button class="pin-btn ${isStarred?'active':''}" data-item="${esc(o.item)}">${isStarred?'⭐':'☆'}</button></td>
         <td style="white-space:nowrap;font-size:0.8rem;">${fmtDate(o.date)}</td>
-        <td><div class="item-name-cell">${getIconHtml(o.item)}<strong><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);" data-jump="${esc(o.item)}">${esc(o.item)}</a></strong></div>${isOutlier?' <span class="outlier-icon" title="Possible outlier (3× median)">⚠️</span>':''}</td>
+        <td>
+          <div class="item-name-cell">
+            <span class="edit-img-btn" data-item="${esc(o.item)}" style="cursor:${isAdmin ? 'pointer' : 'default'}; position:relative; display:inline-flex;" title="${isAdmin ? 'Click to edit image' : ''}">
+              ${getIconHtml(o.item)}
+              ${isAdmin ? '<span style="position:absolute; bottom:-2px; right:-2px; font-size:10px; background:var(--primary); color:white; border-radius:50%; width:14px; height:14px; display:flex; align-items:center; justify-content:center; border:1px solid var(--card-bg);">✏️</span>' : ''}
+            </span>
+            <strong><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);" data-jump="${esc(o.item)}">${esc(o.item)}</a></strong>
+          </div>
+          ${isOutlier?' <span class="outlier-icon" title="Possible outlier (3× median)">⚠️</span>':''}
+        </td>
         <td>${esc(seller)}</td>
         <td><span class="badge ${badgeClass}">${esc(o.location)}</span></td>
         <td>${fmtNum(getPrice(o))}</td>
@@ -1260,6 +1310,15 @@ function renderPricesView() {
         <td>${isAdmin ? `<button class="danger small" data-del="${o.id}">✕</button> <button class="secondary small" data-edit="${o.id}">✏️</button>` : ''}</td>
       `;
       tr.querySelector('.pin-btn').addEventListener('click', e => { e.preventDefault(); toggleWatchlist(o.item); });
+      
+      const editImgBtn = tr.querySelector('.edit-img-btn');
+      if (isAdmin && editImgBtn) {
+        editImgBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.adminUploadImage(o.item);
+        });
+      }
+
       tr.querySelector('a[data-jump]').addEventListener('click', e => {
         e.preventDefault();
         switchView('analytics');
@@ -1827,53 +1886,108 @@ $('btnPendingImgs').addEventListener('click', () => {
   adminImageFilter = 'pending';
   $('btnPendingImgs').style.background = 'var(--primary)'; $('btnPendingImgs').style.color = 'white';
   $('btnApprovedImgs').style.background = 'var(--text-light)'; $('btnApprovedImgs').style.color = 'white';
+  $('btnAllImgs').style.background = 'var(--text-light)'; $('btnAllImgs').style.color = 'white';
+  $('adminImgSearch').style.display = 'none';
   renderAdminImages();
 });
 $('btnApprovedImgs').addEventListener('click', () => {
   adminImageFilter = 'approved';
   $('btnApprovedImgs').style.background = 'var(--primary)'; $('btnApprovedImgs').style.color = 'white';
   $('btnPendingImgs').style.background = 'var(--text-light)'; $('btnPendingImgs').style.color = 'white';
+  $('btnAllImgs').style.background = 'var(--text-light)'; $('btnAllImgs').style.color = 'white';
+  $('adminImgSearch').style.display = 'none';
   renderAdminImages();
 });
+$('btnAllImgs').addEventListener('click', () => {
+  adminImageFilter = 'all';
+  $('btnAllImgs').style.background = 'var(--primary)'; $('btnAllImgs').style.color = 'white';
+  $('btnPendingImgs').style.background = 'var(--text-light)'; $('btnPendingImgs').style.color = 'white';
+  $('btnApprovedImgs').style.background = 'var(--text-light)'; $('btnApprovedImgs').style.color = 'white';
+  $('adminImgSearch').style.display = 'block';
+  renderAdminImages();
+});
+$('adminImgSearch').addEventListener('input', renderAdminImages);
 
 function renderAdminImages() {
   const container = $('imageReviewList');
-  const entries = Object.entries(itemImages).filter(([key, img]) => {
-    if (adminImageFilter === 'pending') return img.status === 'pending';
-    return img.status === 'approved' || img.locked;
-  });
+  let entries = [];
   
-  if (entries.length === 0) {
-    container.innerHTML = `<p class="empty-state">No ${adminImageFilter} images.</p>`;
-    return;
-  }
-  
-  container.innerHTML = entries.map(([key, img]) => `
-    <div class="admin-image-card">
-      <img src="${img.base64}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;">
-      <div class="info">
-        <strong>${esc(img.item)}</strong>
-        <div class="data-hint">By: ${esc(img.uploadedBy)} • ${fmtDate(img.updatedAt)}</div>
-        <div class="data-hint" style="color:var(--primary);font-weight:600;">
-          ${img.status === 'approved' ? '✅ Approved' : '⏳ Pending Review'} 
-          ${img.locked ? '• 🔒 Locked' : ''}
+  if (adminImageFilter === 'all') {
+    const allItems = new Set(getUniqueItems());
+    Object.values(itemImages).forEach(img => allItems.add(img.item));
+    const q = normalize($('adminImgSearch').value);
+    const filteredItems = [...allItems].filter(it => normalize(it).includes(q)).sort();
+    
+    if (filteredItems.length === 0) {
+      container.innerHTML = `<p class="empty-state">No items found.</p>`;
+      return;
+    }
+    
+    container.innerHTML = filteredItems.map(itemName => {
+      const key = getSafeKey(itemName);
+      const img = itemImages[key];
+      const hasImg = img && img.base64;
+      
+      return `
+        <div class="admin-image-card">
+          ${hasImg ? `<img src="${img.base64}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;">` : `<div style="width:64px;height:64px;border-radius:8px;background:var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-light);font-size:20px;">?</div>`}
+          <div class="info">
+            <strong>${esc(itemName)}</strong>
+            <div class="data-hint">
+              ${hasImg ? `Status: ${img.status === 'approved' ? '✅ Approved' : '⏳ Pending'} ${img.locked ? '• 🔒 Locked' : ''}` : 'No image uploaded yet'}
+            </div>
+          </div>
+          <div class="actions">
+            <button class="secondary small" onclick="window.adminUploadImage('${esc(itemName)}')">${hasImg ? '✏️ Replace' : '📸 Upload'}</button>
+            ${hasImg ? `
+              <button class="secondary small" data-lock="${key}">${img.locked ? '🔓 Unlock' : '🔒 Lock'}</button>
+              <button class="danger small" data-reject="${key}">🗑️ Delete</button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } else {
+    entries = Object.entries(itemImages).filter(([key, img]) => {
+      if (adminImageFilter === 'pending') return img.status === 'pending';
+      return img.status === 'approved' || img.locked;
+    });
+    
+    if (entries.length === 0) {
+      container.innerHTML = `<p class="empty-state">No ${adminImageFilter} images.</p>`;
+      return;
+    }
+    
+    container.innerHTML = entries.map(([key, img]) => `
+      <div class="admin-image-card">
+        <img src="${img.base64}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;">
+        <div class="info">
+          <strong>${esc(img.item)}</strong>
+          <div class="data-hint">By: ${esc(img.uploadedBy)} • ${fmtDate(img.updatedAt)}</div>
+          <div class="data-hint" style="color:var(--primary);font-weight:600;">
+            ${img.status === 'approved' ? '✅ Approved' : '⏳ Pending Review'} 
+            ${img.locked ? '• 🔒 Locked' : ''}
+          </div>
+        </div>
+        <div class="actions">
+          ${img.status === 'pending' ? `
+            <button class="success small" data-approve="${key}">✅ Approve</button>
+            <button class="secondary small" data-edit-img="${esc(img.item)}">✏️ Edit</button>
+            <button class="danger small" data-reject="${key}">🗑️ Reject</button>
+          ` : `
+            <button class="secondary small" data-edit-img="${esc(img.item)}">✏️ Replace</button>
+            <button class="secondary small" data-lock="${key}">${img.locked ? '🔓 Unlock' : '🔒 Lock'}</button>
+            <button class="danger small" data-reject="${key}">🗑️ Delete</button>
+          `}
         </div>
       </div>
-      <div class="actions">
-        ${img.status === 'pending' ? `
-          <button class="success small" data-approve="${key}">✅ Approve</button>
-          <button class="danger small" data-reject="${key}">🗑️ Reject</button>
-        ` : `
-          <button class="secondary small" data-lock="${key}">${img.locked ? '🔓 Unlock' : '🔒 Lock'}</button>
-          <button class="danger small" data-reject="${key}">🗑️ Delete</button>
-        `}
-      </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
   
   container.querySelectorAll('button[data-approve]').forEach(b => b.addEventListener('click', () => approveImage(b.dataset.approve)));
   container.querySelectorAll('button[data-reject]').forEach(b => b.addEventListener('click', () => rejectImage(b.dataset.reject)));
   container.querySelectorAll('button[data-lock]').forEach(b => b.addEventListener('click', () => toggleLockImage(b.dataset.lock)));
+  container.querySelectorAll('button[data-edit-img]').forEach(b => b.addEventListener('click', () => window.adminUploadImage(b.dataset.editImg)));
 }
 
 async function approveImage(key) {
