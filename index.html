@@ -170,7 +170,7 @@
   .modal-root { display:none; position:fixed; inset:0; z-index:9998; }
   .modal-root.open { display:block; }
   .modal-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:20px; }
-  .modal { background:var(--card-bg); border-radius:12px; padding:24px; max-width:600px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 40px rgba(0,0,0,.3); }
+  .modal { background:var(--card-bg); border-radius:12px; padding:24px; max-width:800px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 40px rgba(0,0,0,.3); }
   .modal h3 { color:var(--primary); margin-bottom:16px; font-size:1.15rem; }
   .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
   .modal-actions button { flex:0 0 auto; }
@@ -189,6 +189,10 @@
   .admin-image-card { display:flex; align-items:center; gap:15px; padding:12px; border:1px solid var(--border); border-radius:8px; margin-bottom:10px; background:var(--card-bg); flex-wrap:wrap; }
   .admin-image-card .info { flex:1; min-width:150px; }
   .admin-image-card .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  
+  /* Clickable links */
+  .seller-link { color:var(--primary); text-decoration:none; font-weight:600; cursor:pointer; border-bottom:1px dotted var(--primary); }
+  .seller-link:hover { color:var(--primary-hover); }
 </style>
 </head>
 <body data-theme="light">
@@ -344,6 +348,7 @@
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:15px; margin-bottom:14px;" id="analyticsHeaderImg"></div>
+    
     <div class="stat-grid" style="margin-top:8px;">
       <div class="stat-box"><div class="value" id="avgPrice">-</div><div class="label">Avg. Price</div></div>
       <div class="stat-box"><div class="value" id="totalQty">-</div><div class="label">Est. Market Stock</div></div>
@@ -351,11 +356,19 @@
       <div class="stat-box"><div class="value" id="maxPrice">-</div><div class="label">All-Time High</div></div>
       <div class="stat-box"><div class="value" id="trendBox">-</div><div class="label">7d Trend</div></div>
     </div>
+    
     <div class="row-3" style="margin-bottom:14px;">
-      <div class="stat-box"><div class="label">Confidence</div><div class="value" id="confLabel" style="font-size:1rem;">-</div><div class="confidence-bar"><div class="confidence-fill" id="confBar" style="width:0%;"></div></div><div class="label" id="confDetail" style="font-size:0.7rem;margin-top:4px;"></div></div>
+      <div class="stat-box"><div class="label">Est. Market Value Range</div><div class="value" id="marketValRange" style="font-size:1rem;">-</div><div class="label" id="marketValDetail" style="font-size:0.7rem;"></div></div>
       <div class="stat-box"><div class="label">Best Day to BUY</div><div class="value" id="bestBuyDay" style="font-size:1rem;">-</div><div class="label" id="bestBuyDayDetail" style="font-size:0.7rem;"></div></div>
       <div class="stat-box"><div class="label">Best Day to SELL</div><div class="value" id="bestSellDay" style="font-size:1rem;">-</div><div class="label" id="bestSellDayDetail" style="font-size:0.7rem;"></div></div>
     </div>
+    
+    <div class="stat-grid" style="margin-bottom:14px;">
+      <div class="stat-box" style="grid-column: span 3; display:flex; justify-content:center; gap:20px; align-items:center; flex-wrap:wrap;">
+        <div><div class="label">Confidence</div><div class="value" id="confLabel" style="font-size:1rem;">-</div><div class="confidence-bar" style="width:100px;margin:4px auto;"><div class="confidence-fill" id="confBar" style="width:0%;"></div></div><div class="label" id="confDetail" style="font-size:0.7rem;"></div></div>
+      </div>
+    </div>
+
     <div class="chart-container" style="margin-bottom:20px;"><canvas id="priceChart"></canvas></div>
     
     <div id="eventImpactSection" style="margin-bottom:20px;">
@@ -366,16 +379,16 @@
 
     <div id="sellerBreakdownSection">
       <h3 style="font-size:0.95rem;margin-bottom:6px;color:var(--primary);">👤 Seller Breakdown</h3>
-      <p class="data-hint" style="margin-bottom:10px;">Tracks the max quantity seen, lowest/highest prices per player, and their latest reported stock.</p>
-      <div class="scrollable" style="max-height:300px;">
+      <p class="data-hint" style="margin-bottom:10px;">Click a seller's name to view their full profile.</p>
+      <div class="scrollable" style="max-height:400px;">
         <table class="event-table" id="sellerBreakdownTable">
           <thead>
             <tr>
               <th>Player</th>
               <th>Current Qty</th>
               <th>Max Qty Seen</th>
-              <th>Lowest Price</th>
-              <th>Highest Price</th>
+              <th>Price Range</th>
+              <th>Stock Value Range</th>
               <th>Last Seen</th>
             </tr>
           </thead>
@@ -659,6 +672,80 @@ function getIconHtml(itemName) {
   }
   return `<div class="item-icon" style="display:inline-flex;align-items:center;justify-content:center;color:var(--text-light);font-size:16px;">?</div>`;
 }
+
+// ==== Seller Profile Modal ====
+window.showSellerProfile = function(sellerName) {
+  const seller = getCanonicalSeller(sellerName);
+  const sObs = observations.filter(o => getCanonicalSeller(o.seller) === seller);
+  
+  if (sObs.length === 0) return showToast('No data for this seller.', 'error');
+  
+  // Aggregate stats per item
+  const items = {};
+  sObs.forEach(o => {
+    const p = getPrice(o);
+    const q = getQty(o);
+    const date = o.date || 0;
+    
+    if (!items[o.item]) {
+      items[o.item] = { item: o.item, maxQty: 0, lowPrice: Infinity, highPrice: 0, latestQty: 0, latestDate: 0, count: 0 };
+    }
+    const i = items[o.item];
+    if (q > i.maxQty) i.maxQty = q;
+    if (p < i.lowPrice) i.lowPrice = p;
+    if (p > i.highPrice) i.highPrice = p;
+    i.count++;
+    
+    if (date >= i.latestDate) {
+      i.latestDate = date;
+      i.latestQty = q;
+    }
+  });
+  
+  const sortedItems = Object.values(items).sort((a,b) => b.latestQty - a.latestQty);
+  const totalStock = sortedItems.reduce((sum, i) => sum + i.latestQty, 0);
+  
+  let html = `
+    <h3>👤 Seller Profile: ${esc(seller)}</h3>
+    <div class="stat-grid" style="margin-bottom:16px;">
+      <div class="stat-box"><div class="value">${sObs.length}</div><div class="label">Total Observations</div></div>
+      <div class="stat-box"><div class="value">${sortedItems.length}</div><div class="label">Unique Items</div></div>
+      <div class="stat-box"><div class="value">${fmtNum(totalStock)}</div><div class="label">Total Current Stock</div></div>
+    </div>
+    
+    <h4 style="margin-bottom:8px; color:var(--text);">Item Breakdown</h4>
+    <div class="scrollable" style="max-height:300px;">
+      <table class="event-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Current Qty</th>
+            <th>Max Qty</th>
+            <th>Price Range</th>
+            <th>Logs</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sortedItems.map(i => `
+            <tr>
+              <td><strong>${esc(i.item)}</strong></td>
+              <td>${fmtNum(i.latestQty)}</td>
+              <td>${fmtNum(i.maxQty)}</td>
+              <td><span style="color:var(--success)">${fmtNum(i.lowPrice)}</span> - <span style="color:var(--danger)">${fmtNum(i.highPrice)}</span></td>
+              <td>${i.count}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="modal-actions">
+      <button class="secondary" onclick="window.__closeModal()">Close</button>
+    </div>
+  `;
+  
+  openModal(html);
+};
 
 // ==== Image Upload Logic ====
 function updateDropzoneUI() {
@@ -1322,7 +1409,7 @@ function renderPricesView() {
           </div>
           ${isOutlier?' <span class="outlier-icon" title="Possible outlier (3× median)">⚠️</span>':''}
         </td>
-        <td>${esc(seller)}</td>
+        <td><a class="seller-link" data-seller="${esc(seller)}">${esc(seller)}</a></td>
         <td><span class="badge ${badgeClass}">${esc(o.location)}</span></td>
         <td>${fmtNum(getPrice(o))}</td>
         <td>${getQty(o)}</td>
@@ -1332,6 +1419,11 @@ function renderPricesView() {
       `;
       tr.querySelector('.pin-btn').addEventListener('click', e => { e.preventDefault(); toggleWatchlist(o.item); });
       
+      tr.querySelector('.seller-link').addEventListener('click', (e) => {
+        e.preventDefault();
+        window.showSellerProfile(seller);
+      });
+
       const editImgBtn = tr.querySelector('.edit-img-btn');
       if (isAdmin && editImgBtn) {
         editImgBtn.addEventListener('click', (e) => {
@@ -1477,7 +1569,8 @@ function renderAnalyticsView() {
   const headerImg = $('analyticsHeaderImg');
 
   if (!selected) {
-    ['avgPrice','totalQty','minPrice','maxPrice','trendBox','confLabel'].forEach(id => $(id).textContent = '-');
+    ['avgPrice','totalQty','minPrice','maxPrice','trendBox','confLabel', 'marketValRange'].forEach(id => $(id).textContent = '-');
+    $('marketValDetail').textContent = '';
     $('confBar').style.width = '0%'; $('confDetail').textContent = '';
     $('bestBuyDay').textContent = '-'; $('bestSellDay').textContent = '-';
     $('bestBuyDayDetail').textContent = ''; $('bestSellDayDetail').textContent = '';
@@ -1500,19 +1593,35 @@ function renderAnalyticsView() {
 
   const itemObs = observations.filter(o => o.item === selected).slice().sort((a,b) => (a.date||0) - (b.date||0));
   const prices = itemObs.map(o => getPrice(o)).filter(n => typeof n === 'number');
+  const minPrice = prices.length ? Math.min(...prices) : 0;
+  const maxPrice = prices.length ? Math.max(...prices) : 0;
 
   // Deduplicate stock calculation by finding latest report per seller
   const latestObsPerSeller = {};
   itemObs.forEach(o => {
     const sellerKey = getCanonicalSeller(o.seller);
-    latestObsPerSeller[sellerKey] = o; // Because itemObs is sorted by date ascending, the last one is the most recent
+    latestObsPerSeller[sellerKey] = o; 
   });
   const totalQtySeen = Object.values(latestObsPerSeller).reduce((sum, o) => sum + getQty(o), 0);
 
   $('avgPrice').textContent = fmtNum(prices.length ? prices.reduce((a,b)=>a+b,0) / prices.length : null);
   $('totalQty').textContent = fmtNum(totalQtySeen);
-  $('minPrice').textContent = fmtNum(prices.length ? Math.min(...prices) : null);
-  $('maxPrice').textContent = fmtNum(prices.length ? Math.max(...prices) : null);
+  $('minPrice').textContent = fmtNum(minPrice);
+  $('maxPrice').textContent = fmtNum(maxPrice);
+
+  // Market Value Range Logic
+  const lowVal = totalQtySeen * minPrice;
+  const highVal = totalQtySeen * maxPrice;
+  const diffVal = highVal - lowVal;
+  const diffPct = lowVal > 0 ? (diffVal / lowVal) * 100 : 0;
+
+  if (totalQtySeen > 0 && prices.length > 0) {
+    $('marketValRange').textContent = `${fmtNum(lowVal)} - ${fmtNum(highVal)}`;
+    $('marketValDetail').innerHTML = `Variance: ${fmtNum(diffVal)} (${diffPct.toFixed(1)}%)`;
+  } else {
+    $('marketValRange').textContent = '-';
+    $('marketValDetail').textContent = '';
+  }
 
   const trend = computeTrend(itemObs);
   if (trend) {
@@ -1634,7 +1743,6 @@ function renderSellerBreakdown(itemObs) {
     if (p < s.lowPrice) s.lowPrice = p;
     if (p > s.highPrice) s.highPrice = p;
     
-    // itemObs is sorted ascending, so this will naturally grab the latest
     if (date >= s.latestDate) {
       s.latestDate = date;
       s.latestQty = q;
@@ -1650,16 +1758,25 @@ function renderSellerBreakdown(itemObs) {
   }
 
   $('sellerBreakdownEmpty').style.display = 'none';
-  body.innerHTML = sorted.map(s => `
-    <tr>
-      <td><strong>${esc(s.seller)}</strong></td>
-      <td><strong>${fmtNum(s.latestQty)}</strong></td>
-      <td>${fmtNum(s.maxQty)}</td>
-      <td style="color:var(--success)">${fmtNum(s.lowPrice)}</td>
-      <td style="color:var(--danger)">${fmtNum(s.highPrice)}</td>
-      <td style="font-size:0.8rem;color:var(--text-light);">${fmtDate(s.latestDate)}</td>
-    </tr>
-  `).join('');
+  body.innerHTML = sorted.map(s => {
+    const lowVal = s.latestQty * s.lowPrice;
+    const highVal = s.latestQty * s.highPrice;
+    return `
+      <tr>
+        <td><a class="seller-link" data-seller="${esc(s.seller)}">${esc(s.seller)}</a></td>
+        <td><strong>${fmtNum(s.latestQty)}</strong></td>
+        <td>${fmtNum(s.maxQty)}</td>
+        <td><span style="color:var(--success)">${fmtNum(s.lowPrice)}</span> - <span style="color:var(--danger)">${fmtNum(s.highPrice)}</span></td>
+        <td><strong>${fmtNum(lowVal)} - ${fmtNum(highVal)}</strong></td>
+        <td style="font-size:0.8rem;color:var(--text-light);">${fmtDate(s.latestDate)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  body.querySelectorAll('.seller-link').forEach(a => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.showSellerProfile(a.dataset.seller);
+  }));
 }
 
 $('saveNoteBtn').addEventListener('click', async () => {
@@ -1706,7 +1823,7 @@ function renderDealsView() {
       <div class="deal-row">
         <div class="deal-info">
           <div class="item-name"><a href="#" data-jump="${esc(d.item)}" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light); display:flex; align-items:center; gap:8px;">${getIconHtml(d.item)} ${esc(d.item)}</a></div>
-          <div class="deal-meta">Current: ${fmtNum(d.currentPrice)} • Avg: ${fmtNum(d.avg)} • Seller: ${esc(getCanonicalSeller(d.latest.seller))} • Source: ${esc(d.latest.location)}</div>
+          <div class="deal-meta">Current: ${fmtNum(d.currentPrice)} • Avg: ${fmtNum(d.avg)} • Seller: <a class="seller-link" data-seller="${esc(getCanonicalSeller(d.latest.seller))}">${esc(getCanonicalSeller(d.latest.seller))}</a> • Source: ${esc(d.latest.location)}</div>
         </div>
         <div class="deal-pct">-${d.discount.toFixed(1)}%</div>
       </div>
@@ -1718,6 +1835,10 @@ function renderDealsView() {
       populateAnalyticsDropdown();
       $('analyticsItem').value = a.dataset.jump;
       renderAnalyticsView();
+    }));
+    body.querySelectorAll('.seller-link').forEach(a => a.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.showSellerProfile(a.dataset.seller);
     }));
   }
 
@@ -2291,7 +2412,7 @@ function renderAdminView() {
   else trashEl.innerHTML = trash.map(t => `
     <div class="trash-item">
       <div>
-        <strong>${esc(t.item)}</strong> — ${fmtNum(getPrice(t))} (x${getQty(t)}) • <em>${esc(getCanonicalSeller(t.seller))}</em>
+        <strong>${esc(t.item)}</strong> — ${fmtNum(getPrice(t))} (x${getQty(t)}) • <em><a class="seller-link" data-seller="${esc(getCanonicalSeller(t.seller))}">${esc(getCanonicalSeller(t.seller))}</a></em>
         <div class="meta">Deleted by ${esc(t.deletedBy||'?')} • ${fmtDate(t.deletedAt)} • ${esc(t.deletedReason||'')}</div>
       </div>
       <div style="display:flex;gap:6px;">
@@ -2302,6 +2423,10 @@ function renderAdminView() {
   `).join('');
   trashEl.querySelectorAll('button[data-restore]').forEach(b => b.addEventListener('click', () => restoreFromTrash(b.dataset.restore)));
   trashEl.querySelectorAll('button[data-perm-del]').forEach(b => b.addEventListener('click', () => permanentDelete(b.dataset.permDel)));
+  trashEl.querySelectorAll('.seller-link').forEach(a => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.showSellerProfile(a.dataset.seller);
+  }));
 
   const auditEl = $('auditList');
   if (!auditLog.length) auditEl.innerHTML = '<p class="empty-state">No actions yet.</p>';
@@ -2342,4 +2467,3 @@ renderPricesView();
 </script>
 </body>
 </html>
-```
