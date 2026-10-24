@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Last Chaos Guild Price Tracker</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 <style>
   :root {
     --bg:#f4f6f9; --card-bg:#fff; --input-bg:#fff; --text:#1e293b; --text-light:#64748b;
@@ -25,7 +27,7 @@
   body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; padding:16px; transition:background .2s, color .2s; }
   .container { max-width:1350px; margin:0 auto; }
   header { display:flex; justify-content:space-between; align-items:flex-start; gap:15px; margin-bottom:20px; flex-wrap:wrap; }
-  .header-left h1 { font-size:1.6rem; color:var(--primary); margin-bottom:4px; }
+  .header-left h1 { font-size:1.6rem; color:var(--primary); margin-bottom:4px; display:flex; align-items:center; gap:10px; }
   .header-left p { color:var(--text-light); font-size:0.9rem; }
   .header-right { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .conn { display:inline-block; padding:4px 10px; border-radius:9999px; font-size:0.75rem; font-weight:600; }
@@ -75,7 +77,7 @@
   .btn-row { display:flex; gap:8px; flex-wrap:wrap; }
   .btn-row button { flex:0 0 auto; }
   table { width:100%; border-collapse:collapse; font-size:0.87rem; }
-  th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--border); }
+  th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--border); vertical-align:middle; }
   th { background:var(--hover); font-weight:600; color:var(--text-light); text-transform:uppercase; font-size:0.72rem; letter-spacing:.05em; position:sticky; top:0; z-index:1; }
   th[data-sort] { cursor:pointer; user-select:none; }
   th[data-sort]:hover { color:var(--primary); }
@@ -128,7 +130,7 @@
   .deal-row, .mover-row { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px solid var(--border); font-size:0.9rem; gap:10px; }
   .deal-row:hover, .mover-row:hover { background:var(--hover); }
   .deal-row .deal-info { flex:1; min-width:0; }
-  .deal-row .deal-info .item-name { font-weight:600; }
+  .deal-row .deal-info .item-name { font-weight:600; display:flex; align-items:center; gap:8px; }
   .deal-row .deal-info .deal-meta { font-size:0.78rem; color:var(--text-light); }
   .deal-row .deal-pct { font-weight:700; font-size:1.05rem; color:var(--success); }
   .mover-row .change-pct { font-weight:700; min-width:80px; text-align:right; }
@@ -167,13 +169,26 @@
   .diff-change { color:var(--warning); }
   .modal-root { display:none; position:fixed; inset:0; z-index:9998; }
   .modal-root.open { display:block; }
-  .modal-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; padding:20px; }
+  .modal-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:20px; }
   .modal { background:var(--card-bg); border-radius:12px; padding:24px; max-width:600px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 40px rgba(0,0,0,.3); }
   .modal h3 { color:var(--primary); margin-bottom:16px; font-size:1.15rem; }
   .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
   .modal-actions button { flex:0 0 auto; }
   .footer { text-align:center; margin-top:30px; color:var(--text-light); font-size:0.8rem; }
   .source-note { background:var(--hover); padding:10px 12px; border-radius:6px; margin-top:8px; font-size:0.83rem; color:var(--text-light); }
+  
+  /* Image Upload & Crop Styles */
+  .item-icon { width:32px; height:32px; border-radius:4px; object-fit:cover; background:var(--border); border:1px solid var(--border); display:inline-block; vertical-align:middle; }
+  .item-icon.large { width:48px; height:48px; }
+  .item-name-cell { display:flex; align-items:center; gap:10px; }
+  .dropzone { border:2px dashed var(--border); border-radius:8px; padding:15px; text-align:center; cursor:pointer; transition:all .2s; background:var(--hover); margin-top:8px; display:none; font-size:0.85rem; color:var(--text-light); }
+  .dropzone.dragover { border-color:var(--primary); background:rgba(37,99,235,.1); color:var(--primary); }
+  .dropzone.has-image { border-style:solid; padding:10px; display:flex; align-items:center; justify-content:center; gap:15px; flex-direction:column; }
+  .crop-container { width:100%; height:350px; background:#333; border-radius:8px; overflow:hidden; display:flex; justify-content:center; }
+  .crop-container img { max-width:100%; display:block; }
+  .admin-image-card { display:flex; align-items:center; gap:15px; padding:12px; border:1px solid var(--border); border-radius:8px; margin-bottom:10px; background:var(--card-bg); flex-wrap:wrap; }
+  .admin-image-card .info { flex:1; min-width:150px; }
+  .admin-image-card .actions { display:flex; gap:8px; flex-wrap:wrap; }
 </style>
 </head>
 <body data-theme="light">
@@ -215,6 +230,11 @@
           <label for="itemName">Item Name *</label>
           <input type="text" id="itemName" required placeholder="Start typing to search or create..." autocomplete="off">
           <div id="itemSuggest" class="item-suggest"></div>
+          <div id="dropzone" class="dropzone">
+            <div>📸 Drag & drop an in-game screenshot here, or click to upload</div>
+            <div class="data-hint">We'll crop it to a square for you.</div>
+          </div>
+          <div id="pendingImgPreview" style="display:none; margin-top:10px;"></div>
         </div>
         <div class="form-group">
           <label for="location">Source *</label>
@@ -315,6 +335,9 @@
         <select id="analyticsItem"><option value="">-- Choose an item --</option></select>
       </div>
     </div>
+    <div style="display:flex; align-items:center; gap:15px; margin-bottom:14px;" id="analyticsHeaderImg">
+        <!-- Image will go here -->
+    </div>
     <div class="stat-grid" style="margin-top:8px;">
       <div class="stat-box"><div class="value" id="avgPrice">-</div><div class="label">Avg. Price</div></div>
       <div class="stat-box"><div class="value" id="totalQty">-</div><div class="label">Total Qty Seen</div></div>
@@ -380,14 +403,24 @@
   <div class="card">
     <h2>🛡️ Admin Panel <span class="badge-admin">ADMIN</span></h2>
     <div class="admin-tabs">
-      <button data-admin-tab="backups" class="active">Backups</button>
+      <button data-admin-tab="images" class="active">🖼️ Images</button>
+      <button data-admin-tab="backups">Backups</button>
       <button data-admin-tab="cleanup">Data Cleanup</button>
       <button data-admin-tab="trash">Trash</button>
       <button data-admin-tab="audit">Audit Log</button>
       <button data-admin-tab="settings">Settings</button>
     </div>
 
-    <div id="admin-tab-backups" class="admin-tab-content active">
+    <div id="admin-tab-images" class="admin-tab-content active">
+      <p class="data-hint" style="margin-bottom:10px;">Approve user-submitted item images. Lock an image to prevent guildies from overwriting a perfect icon.</p>
+      <div class="admin-tabs" style="margin-bottom:15px; border-bottom:none;">
+        <button id="btnPendingImgs" class="active small" style="background:var(--primary); color:white; border-radius:6px;">Pending Review</button>
+        <button id="btnApprovedImgs" class="small secondary" style="border-radius:6px;">Approved / Locked</button>
+      </div>
+      <div id="imageReviewList"></div>
+    </div>
+
+    <div id="admin-tab-backups" class="admin-tab-content">
       <p class="data-hint" style="margin-bottom:10px;">Hourly GitHub backups. Restoring replaces ALL current observations with the snapshot.</p>
       <button id="refreshBackupsBtn" class="secondary small">🔄 Refresh Backups</button>
       <div id="backupsList" style="margin-top:12px;"><p class="empty-state">Loading...</p></div>
@@ -475,7 +508,6 @@ const firebaseConfig = {
   appId: "1:626375846747:web:93828097de8e6c08f0887e"
 };
 
-// ✅ YOUR UID IS PASTED HERE
 const ADMIN_UIDS = [
   'FxhzC0FatfVSLUs7VPsO4qSx73B2',
 ];
@@ -491,7 +523,7 @@ const EVENT_COLORS = {
 };
 // ============================================================
 
-let observations = [], itemNotes = [], trash = [], auditLog = [], settings = {};
+let observations = [], itemNotes = [], itemImages = {}, trash = [], auditLog = [], settings = {};
 let db, auth, currentUid = null, isAdmin = false;
 let readOnly = false, chartInstance = null;
 let pendingDeleteIds = [];
@@ -503,14 +535,22 @@ let currentPage = 1;
 const PAGE_SIZE = 25;
 let dateRangeFilter = 'all';
 
+// Image upload state
+let cropperInstance = null;
+let pendingBase64Img = null;
+let currentItemKey = null;
+let adminImageFilter = 'pending'; // 'pending' or 'approved'
+
 const $ = id => document.getElementById(id);
 const itemNameInput = $('itemName');
 const itemSuggest = $('itemSuggest');
 const loggedByInput = $('loggedBy');
 const toastEl = $('toast');
+const dropzone = $('dropzone');
 
 function getPrice(o) { return typeof o.price === 'number' ? o.price : (o.low || 0); }
 function getQty(o) { return typeof o.qty === 'number' ? o.qty : 1; }
+function getSafeKey(name) { return encodeURIComponent(normalize(name)).replace(/%/g, ''); }
 
 const savedTheme = localStorage.getItem('lc_theme');
 if (savedTheme) document.body.dataset.theme = savedTheme;
@@ -553,10 +593,123 @@ function setConnection(state, label) {
   el.textContent = label || (state==='live' ? '🟢 Live' : state==='offline' ? '🔴 Offline' : '⏳ Connecting…');
 }
 
-let activeSuggestion = -1;
-function showSuggestions(query) {
+// Get Image HTML helper
+function getIconHtml(itemName) {
+  const key = getSafeKey(itemName);
+  const img = itemImages[key];
+  if (img && img.status === 'approved') {
+    return `<img src="${img.base64}" class="item-icon" alt="${esc(itemName)}">`;
+  }
+  return `<div class="item-icon" style="display:inline-flex;align-items:center;justify-content:center;color:var(--text-light);font-size:16px;">?</div>`;
+}
+
+// ==== Image Upload Logic ====
+function updateDropzoneUI() {
+  const item = itemNameInput.value.trim();
+  if (!item) {
+    dropzone.style.display = 'none';
+    return;
+  }
+  currentItemKey = getSafeKey(item);
+  const existing = itemImages[currentItemKey];
+  
+  if (existing && existing.locked) {
+    dropzone.style.display = 'none';
+    return;
+  }
+  
+  dropzone.style.display = 'block';
+  
+  if (pendingBase64Img) {
+    dropzone.className = 'dropzone has-image';
+    dropzone.innerHTML = `
+      <img src="${pendingBase64Img}" class="item-icon large">
+      <div style="font-size:0.8rem;">Ready to submit for approval</div>
+      <button type="button" class="secondary small" onclick="document.getElementById('fileInput').click()">Re-crop</button>
+    `;
+  } else {
+    dropzone.className = 'dropzone';
+    dropzone.innerHTML = `
+      <div>📸 Drag & drop an in-game screenshot here, or click to upload</div>
+      <div class="data-hint">${existing && existing.status === 'pending' ? '⚠️ An image is already pending approval. Uploading will replace it.' : ''}</div>
+    `;
+  }
+}
+
+// Handle Drag & Drop
+dropzone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropzone.classList.add('dragover');
+});
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    handleImageFile(e.dataTransfer.files[0]);
+  }
+});
+dropzone.addEventListener('click', () => {
+  if (pendingBase64Img) return; // handled by button
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = (e) => {
+    if (e.target.files && e.target.files[0]) handleImageFile(e.target.files[0]);
+  };
+  input.click();
+});
+
+function handleImageFile(file) {
+  if (!file.type.startsWith('image/')) return showToast('Please upload an image file.', 'error');
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    openCropModal(e.target.result);
+  };
+  reader.readAsDataURL(file);
+}
+
+function openCropModal(imageSrc) {
+  const html = `
+    <h3>✂️ Crop Item Icon</h3>
+    <p class="data-hint" style="margin-bottom:10px;">Crop the item to a square. We will automatically resize it to 128x128 to save space.</p>
+    <div class="crop-container">
+      <img id="cropImage" src="${imageSrc}">
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" onclick="window.__closeModal()">Cancel</button>
+      <button id="cropConfirmBtn">Confirm Crop</button>
+    </div>
+  `;
+  openModal(html);
+  
+  const img = document.getElementById('cropImage');
+  if (cropperInstance) cropperInstance.destroy();
+  cropperInstance = new Cropper(img, {
+    aspectRatio: 1,
+    viewMode: 1,
+    autoCropArea: 1,
+    background: false
+  });
+  
+  document.getElementById('cropConfirmBtn').onclick = () => {
+    if (!cropperInstance) return;
+    // Create a tiny canvas to save space
+    const canvas = cropperInstance.getCroppedCanvas({ width: 128, height: 128 });
+    // Compress as JPEG quality 0.7
+    const base64 = canvas.toDataURL('image/jpeg', 0.7);
+    
+    pendingBase64Img = base64;
+    updateDropzoneUI();
+    closeModal();
+    cropperInstance.destroy();
+    cropperInstance = null;
+  };
+}
+
+itemNameInput.addEventListener('input', () => {
   const items = getUniqueItems();
-  const q = normalize(query);
+  const q = normalize(itemNameInput.value);
   let suggestions = [];
   if (!q) suggestions = items.slice(0, 20);
   else {
@@ -575,24 +728,38 @@ function showSuggestions(query) {
   activeSuggestion = -1;
   suggestions.forEach(it => {
     const div = document.createElement('div');
-    div.textContent = it;
-    div.addEventListener('mousedown', e => { e.preventDefault(); itemNameInput.value = it; itemSuggest.classList.remove('show'); });
+    div.innerHTML = `${getIconHtml(it)} <span style="margin-left:8px;">${esc(it)}</span>`;
+    div.style.display = 'flex'; div.style.alignItems = 'center';
+    div.addEventListener('mousedown', e => { 
+      e.preventDefault(); 
+      itemNameInput.value = it; 
+      itemSuggest.classList.remove('show');
+      updateDropzoneUI();
+    });
     itemSuggest.appendChild(div);
   });
+  
   const hasExact = items.some(it => normalize(it) === q);
   if (q && !hasExact) {
     const createDiv = document.createElement('div');
     createDiv.className = 'create-new';
-    createDiv.textContent = `➕ Create new item: "${query.trim()}"`;
-    createDiv.addEventListener('mousedown', e => { e.preventDefault(); itemNameInput.value = query.trim(); itemSuggest.classList.remove('show'); });
+    createDiv.textContent = `➕ Create new item: "${itemNameInput.value.trim()}"`;
+    createDiv.addEventListener('mousedown', e => { 
+      e.preventDefault(); 
+      itemNameInput.value = itemNameInput.value.trim(); 
+      itemSuggest.classList.remove('show'); 
+      updateDropzoneUI();
+    });
     itemSuggest.appendChild(createDiv);
   }
   if (itemSuggest.children.length) itemSuggest.classList.add('show');
   else itemSuggest.classList.remove('show');
-}
-itemNameInput.addEventListener('input', () => showSuggestions(itemNameInput.value));
-itemNameInput.addEventListener('focus', () => showSuggestions(itemNameInput.value));
+  
+  updateDropzoneUI();
+});
+
 itemNameInput.addEventListener('blur', () => setTimeout(() => itemSuggest.classList.remove('show'), 150));
+let activeSuggestion = -1;
 itemNameInput.addEventListener('keydown', e => {
   const opts = [...itemSuggest.querySelectorAll('div')];
   if (!opts.length) return;
@@ -612,7 +779,8 @@ quickFind.addEventListener('input', () => {
   quickFindResults.innerHTML = '';
   matches.forEach(it => {
     const div = document.createElement('div');
-    div.textContent = it;
+    div.innerHTML = `${getIconHtml(it)} <span style="margin-left:8px;">${esc(it)}</span>`;
+    div.style.display = 'flex'; div.style.alignItems = 'center';
     div.addEventListener('mousedown', e => {
       e.preventDefault();
       quickFind.value = '';
@@ -630,6 +798,7 @@ quickFind.addEventListener('input', () => {
 });
 quickFind.addEventListener('blur', () => setTimeout(() => quickFindResults.classList.remove('show'), 150));
 
+// ==== Firebase Init ====
 try {
   const app = initializeApp(firebaseConfig);
   db = getDatabase(app);
@@ -659,6 +828,12 @@ async function boot() {
     }
   });
   onValue(ref(db, '.info/connected'), snap => setConnection(snap.val() ? 'live' : 'offline'));
+  
+  onValue(ref(db, 'itemImages'), snap => {
+    itemImages = snap.val() || {};
+    renderAll(); // Re-render to show new images
+  });
+
   onValue(ref(db, 'observations'), snap => {
     const val = snap.val() || {};
     observations = Object.entries(val).map(([id, data]) => ({ id, ...data }))
@@ -695,7 +870,6 @@ function updateAdminUI() {
   $('adminTabBtn').style.display = isAdmin ? 'inline-block' : 'none';
   if (isAdmin) { subscribeAdmin(); renderAdminView(); }
   
-  // DEBUG: Always show UID if not admin so they can copy it
   if (!isAdmin && currentUid) {
     $('authError').style.display = 'block';
     $('authError').innerHTML = `<strong>🛡️ Admin Setup:</strong> You are not recognized as an admin.<br><br>
@@ -720,6 +894,7 @@ function updateReadOnlyUI() {
   if ($('readOnlyToggle')) $('readOnlyToggle').checked = readOnly;
 }
 
+// ==== Submit Observation ====
 $('priceForm').addEventListener('submit', async e => {
   e.preventDefault();
   if (readOnly) return showToast('Read-only mode is active.', 'error');
@@ -751,11 +926,32 @@ $('priceForm').addEventListener('submit', async e => {
   }
 
   $('submitBtn').disabled = true;
+  
   try {
+    // 1. If there is a pending image, save it to itemImages (if not locked)
+    if (pendingBase64Img) {
+      const key = getSafeKey(item);
+      const existing = itemImages[key];
+      if (!existing || !existing.locked) {
+        await set(ref(db, 'itemImages/' + key), {
+          item: item,
+          base64: pendingBase64Img,
+          status: 'pending', // Requires admin approval
+          uploadedBy: loggedBy,
+          updatedAt: Date.now()
+        });
+        pendingBase64Img = null;
+        updateDropzoneUI();
+      }
+    }
+
+    // 2. Save the observation
     await push(ref(db, 'observations'), { item, location, price, qty, event: event||null, notes: notes||null, loggedBy, date: serverTimestamp(), uid: currentUid });
+    
     localStorage.setItem('lc_guild_logger_name', loggedBy);
     $('priceForm').reset();
     loggedByInput.value = loggedBy;
+    updateDropzoneUI();
     showToast('Saved — guild sees it live!', 'success');
   } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
   finally { $('submitBtn').disabled = false; }
@@ -775,13 +971,15 @@ function switchView(view) {
 }
 
 document.querySelectorAll('.admin-tabs button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.admin-tabs button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
-    $('admin-tab-' + btn.dataset.adminTab).classList.add('active');
-    renderAdminView();
-  });
+  if(btn.dataset.adminTab) {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.admin-tabs button[data-admin-tab]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
+      $('admin-tab-' + btn.dataset.adminTab).classList.add('active');
+      renderAdminView();
+    });
+  }
 });
 
 $('searchInput').addEventListener('input', () => { currentPage = 1; renderPricesView(); });
@@ -885,7 +1083,7 @@ function renderPricesView() {
       tr.innerHTML = `
         <td class="star-col"><button class="pin-btn ${isStarred?'active':''}" data-item="${esc(o.item)}">${isStarred?'⭐':'☆'}</button></td>
         <td style="white-space:nowrap;font-size:0.8rem;">${fmtDate(o.date)}</td>
-        <td><strong><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);" data-jump="${esc(o.item)}">${esc(o.item)}</a></strong>${isOutlier?' <span class="outlier-icon" title="Possible outlier (3× median)">⚠️</span>':''}</td>
+        <td><div class="item-name-cell">${getIconHtml(o.item)}<strong><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);" data-jump="${esc(o.item)}">${esc(o.item)}</a></strong></div>${isOutlier?' <span class="outlier-icon" title="Possible outlier (3× median)">⚠️</span>':''}</td>
         <td><span class="badge ${badgeClass}">${esc(o.location)}</span></td>
         <td>${fmtNum(getPrice(o))}</td>
         <td>${getQty(o)}</td>
@@ -951,12 +1149,12 @@ function renderWatchlist() {
   $('watchlistCount').textContent = `(${watchlist.length})`;
   const itemsHtml = watchlist.map(item => {
     const obs = observations.filter(o => o.item === item);
-    if (obs.length === 0) return `<div class="deal-row"><div class="deal-info"><div class="item-name">${esc(item)}</div><div class="deal-meta">No observations</div></div></div>`;
+    if (obs.length === 0) return `<div class="deal-row"><div class="deal-info"><div class="item-name">${getIconHtml(item)} ${esc(item)}</div><div class="deal-meta">No observations</div></div></div>`;
     const latest = obs[0];
     const avg = obs.slice(0,20).reduce((s,o)=>s+getPrice(o),0) / Math.min(20, obs.length);
     const trend = computeTrend(obs);
     const trendStr = trend ? `<span class="${trend.pct>2?'trend-up':trend.pct<-2?'trend-down':'trend-flat'}">${trend.pct>0?'▲':trend.pct<0?'▼':'■'} ${Math.abs(trend.pct).toFixed(1)}%</span>` : '';
-    return `<div class="deal-row"><div class="deal-info"><div class="item-name"><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);" data-jump="${esc(item)}">${esc(item)}</a></div><div class="deal-meta">Latest: ${fmtNum(getPrice(latest))} • Avg: ${fmtNum(avg)}</div></div><div style="display:flex;gap:8px;align-items:center;">${trendStr}<button class="pin-btn active" data-unwatch="${esc(item)}" title="Remove from watchlist">✕</button></div></div>`;
+    return `<div class="deal-row"><div class="deal-info"><div class="item-name"><a href="#" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light); display:flex; align-items:center; gap:8px;" data-jump="${esc(item)}">${getIconHtml(item)} ${esc(item)}</a></div><div class="deal-meta">Latest: ${fmtNum(getPrice(latest))} • Avg: ${fmtNum(avg)}</div></div><div style="display:flex;gap:8px;align-items:center;">${trendStr}<button class="pin-btn active" data-unwatch="${esc(item)}" title="Remove from watchlist">✕</button></div></div>`;
   }).join('');
   body.innerHTML = itemsHtml;
   body.querySelectorAll('button[data-unwatch]').forEach(btn => btn.addEventListener('click', () => toggleWatchlist(btn.dataset.unwatch)));
@@ -1028,6 +1226,7 @@ function renderAnalyticsView() {
   const selected = $('analyticsItem').value;
   const noteText = $('itemNoteText');
   const noteUpdatedBy = $('noteUpdatedBy');
+  const headerImg = $('analyticsHeaderImg');
 
   if (!selected) {
     ['avgPrice','totalQty','minPrice','maxPrice','trendBox','confLabel'].forEach(id => $(id).textContent = '-');
@@ -1038,7 +1237,16 @@ function renderAnalyticsView() {
     $('eventTable').querySelector('tbody').innerHTML = '';
     $('eventImpactEmpty').style.display = 'block';
     noteText.value = ''; noteUpdatedBy.textContent = '';
+    headerImg.innerHTML = '';
     return;
+  }
+
+  // Add header image
+  const iconHtml = getIconHtml(selected);
+  if (iconHtml.includes('img')) {
+      headerImg.innerHTML = `${iconHtml.replace('32px','64px').replace('item-icon','item-icon large')} <h2 style="margin:0;border:none;padding:0;">${esc(selected)}</h2>`;
+  } else {
+      headerImg.innerHTML = `<h2 style="margin:0;border:none;padding:0;">${esc(selected)}</h2>`;
   }
 
   const itemObs = observations.filter(o => o.item === selected).slice().sort((a,b) => (a.date||0) - (b.date||0));
@@ -1191,7 +1399,7 @@ function renderDealsView() {
     body.innerHTML = deals.map(d => `
       <div class="deal-row">
         <div class="deal-info">
-          <div class="item-name"><a href="#" data-jump="${esc(d.item)}" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);">${esc(d.item)}</a></div>
+          <div class="item-name"><a href="#" data-jump="${esc(d.item)}" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light); display:flex; align-items:center; gap:8px;">${getIconHtml(d.item)} ${esc(d.item)}</a></div>
           <div class="deal-meta">Current: ${fmtNum(d.currentPrice)} • Avg: ${fmtNum(d.avg)} • Source: ${esc(d.latest.location)} • By: ${esc(d.latest.loggedBy||'-')}</div>
         </div>
         <div class="deal-pct">-${d.discount.toFixed(1)}%</div>
@@ -1222,7 +1430,7 @@ function renderDealsView() {
   const losers = movers.slice(-10).reverse();
   const renderMover = (m, isGainer) => `
     <div class="mover-row">
-      <div style="flex:1;min-width:0;"><a href="#" data-jump="${esc(m.item)}" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light);">${esc(m.item)}</a></div>
+      <div style="flex:1;min-width:0;"><a href="#" data-jump="${esc(m.item)}" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-light); display:flex; align-items:center; gap:8px;">${getIconHtml(m.item)} ${esc(m.item)}</a></div>
       <div class="deal-meta" style="font-size:0.78rem;color:var(--text-light);">${fmtNum(m.pAvg)} → ${fmtNum(m.rAvg)}</div>
       <div class="change-pct ${isGainer ? 'trend-up' : 'trend-down'}">${m.change>0?'▲':'▼'} ${Math.abs(m.change).toFixed(1)}%</div>
     </div>
@@ -1429,6 +1637,98 @@ async function previewRestore(filename) {
   } catch (err) { showToast('Preview failed: ' + err.message, 'error'); }
 }
 
+// ============================================================
+// ADMIN IMAGE MANAGEMENT
+// ============================================================
+$('btnPendingImgs').addEventListener('click', () => {
+  adminImageFilter = 'pending';
+  $('btnPendingImgs').style.background = 'var(--primary)'; $('btnPendingImgs').style.color = 'white';
+  $('btnApprovedImgs').style.background = 'var(--text-light)'; $('btnApprovedImgs').style.color = 'white';
+  renderAdminImages();
+});
+$('btnApprovedImgs').addEventListener('click', () => {
+  adminImageFilter = 'approved';
+  $('btnApprovedImgs').style.background = 'var(--primary)'; $('btnApprovedImgs').style.color = 'white';
+  $('btnPendingImgs').style.background = 'var(--text-light)'; $('btnPendingImgs').style.color = 'white';
+  renderAdminImages();
+});
+
+function renderAdminImages() {
+  const container = $('imageReviewList');
+  const entries = Object.entries(itemImages).filter(([key, img]) => {
+    if (adminImageFilter === 'pending') return img.status === 'pending';
+    return img.status === 'approved' || img.locked;
+  });
+  
+  if (entries.length === 0) {
+    container.innerHTML = `<p class="empty-state">No ${adminImageFilter} images.</p>`;
+    return;
+  }
+  
+  container.innerHTML = entries.map(([key, img]) => `
+    <div class="admin-image-card">
+      <img src="${img.base64}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;">
+      <div class="info">
+        <strong>${esc(img.item)}</strong>
+        <div class="data-hint">By: ${esc(img.uploadedBy)} • ${fmtDate(img.updatedAt)}</div>
+        <div class="data-hint" style="color:var(--primary);font-weight:600;">
+          ${img.status === 'approved' ? '✅ Approved' : '⏳ Pending Review'} 
+          ${img.locked ? '• 🔒 Locked' : ''}
+        </div>
+      </div>
+      <div class="actions">
+        ${img.status === 'pending' ? `
+          <button class="success small" data-approve="${key}">✅ Approve</button>
+          <button class="danger small" data-reject="${key}">🗑️ Reject</button>
+        ` : `
+          <button class="secondary small" data-lock="${key}">${img.locked ? '🔓 Unlock' : '🔒 Lock'}</button>
+          <button class="danger small" data-reject="${key}">🗑️ Delete</button>
+        `}
+      </div>
+    </div>
+  `).join('');
+  
+  container.querySelectorAll('button[data-approve]').forEach(b => b.addEventListener('click', () => approveImage(b.dataset.approve)));
+  container.querySelectorAll('button[data-reject]').forEach(b => b.addEventListener('click', () => rejectImage(b.dataset.reject)));
+  container.querySelectorAll('button[data-lock]').forEach(b => b.addEventListener('click', () => toggleLockImage(b.dataset.lock)));
+}
+
+async function approveImage(key) {
+  if (!isAdmin) return;
+  try {
+    await update(ref(db, 'itemImages/' + key), { status: 'approved' });
+    await logAction('approve_image', { item: itemImages[key].item });
+    showToast('Image approved and live!', 'success');
+    renderAdminImages();
+  } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+}
+
+async function rejectImage(key) {
+  if (!isAdmin) return;
+  if (!confirm(`Reject and delete image for "${itemImages[key].item}"?`)) return;
+  try {
+    await remove(ref(db, 'itemImages/' + key));
+    await logAction('reject_image', { item: itemImages[key].item });
+    showToast('Image deleted.', 'success');
+    renderAdminImages();
+  } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+}
+
+async function toggleLockImage(key) {
+  if (!isAdmin) return;
+  const isLocked = itemImages[key].locked;
+  try {
+    await update(ref(db, 'itemImages/' + key), { locked: !isLocked });
+    await logAction(isLocked ? 'unlock_image' : 'lock_image', { item: itemImages[key].item });
+    showToast(isLocked ? 'Image unlocked — users can replace it.' : 'Image locked — no more uploads allowed.', 'success');
+    renderAdminImages();
+  } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+}
+
+// ============================================================
+// END ADMIN IMAGE MANAGEMENT
+// ============================================================
+
 $('previewDeleteBtn').addEventListener('click', () => {
   if (!isAdmin) return;
   const username = $('delUsername').value.trim().toLowerCase();
@@ -1567,6 +1867,7 @@ function renderAdminView() {
   if (!isAdmin || activeView !== 'admin') return;
   if ($('backupsList').querySelector('.empty-state') && $('backupsList').querySelector('.empty-state').textContent === 'Loading...') loadBackupsList();
   refreshMergeDropdowns();
+  renderAdminImages();
 
   const trashEl = $('trashList');
   if (!trash.length) trashEl.innerHTML = '<p class="empty-state">Trash is empty.</p>';
@@ -1591,7 +1892,7 @@ function renderAdminView() {
     <div class="audit-row">
       <div>${fmtDate(a.timestamp)}</div>
       <div><strong>${esc(a.username||'?')}</strong></div>
-      <div class="audit-action ${a.action === 'delete' || a.action === 'bulk_delete' || a.action === 'permanent_delete' || a.action === 'empty_trash' ? 'delete' : a.action === 'edit' ? 'edit' : a.action === 'merge' ? 'merge' : a.action === 'restore' || a.action === 'restore_item' ? 'restore' : ''}">${esc(a.action)}</div>
+      <div class="audit-action ${a.action === 'delete' || a.action === 'bulk_delete' || a.action === 'permanent_delete' || a.action === 'empty_trash' || a.action === 'reject_image' ? 'delete' : a.action === 'edit' ? 'edit' : a.action === 'merge' ? 'merge' : a.action === 'restore' || a.action === 'restore_item' || a.action === 'approve_image' ? 'restore' : ''}">${esc(a.action)}</div>
       <div style="font-size:0.78rem;color:var(--text-light);">${esc(JSON.stringify(a.details||{}).slice(0, 200))}</div>
     </div>
   `).join('');
@@ -1611,6 +1912,7 @@ document.querySelector('#modal-root .modal-backdrop').addEventListener('click', 
 });
 
 function renderAll() {
+  updateDropzoneUI();
   if (activeView === 'prices') renderPricesView();
   else if (activeView === 'analytics') renderAnalyticsView();
   else if (activeView === 'deals') renderDealsView();
