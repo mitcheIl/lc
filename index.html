@@ -1,15 +1,3 @@
-This is a critical fix for market data accuracy. 
-
-To solve this, we are going to change how the app handles duplicates and how it calculates the total stock. I've implemented **three major changes**:
-
-1. **Hard Duplicate Blocking**: If someone tries to log the *exact same item, seller, price, and quantity* within 24 hours, the app will completely block it and tell them to input a new quantity if stock has changed. This stops the 10x inflation.
-2. **Per-Seller Stock Logic**: The "Est. Market Stock" now calculates the *latest known quantity for each unique player*. If Bob has 1000, and 5 people log Bob's 1000 stock, the app only counts 1000. When Bob's stock drops to 820, the app updates Bob's contribution to 820.
-3. **Seller Breakdown Table**: I added a new table under the Analytics chart. It breaks down the selected item by player, showing exactly what you asked for: **Max Qty Seen**, **Lowest Price**, **Highest Price**, and their **Current Qty**.
-
-### 📄 Update `index.html`
-Replace your entire file with this updated version:
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
