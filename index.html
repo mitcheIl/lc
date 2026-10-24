@@ -1,3 +1,11 @@
+I have added a brand new **📦 Items Directory** tab. This is a visual grid where every unique item in the database is displayed as a card. 
+
+Players can now quickly browse items, filter by date range (Today, Last 7 Days, etc.), search within the directory, and see a quick summary of the market stats for that specific timeframe. Clicking any card immediately opens its detailed Analytics page.
+
+### 📄 Update `index.html`
+Replace your file with this updated version:
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -193,6 +201,18 @@
   /* Clickable links */
   .seller-link { color:var(--primary); text-decoration:none; font-weight:600; cursor:pointer; border-bottom:1px dotted var(--primary); }
   .seller-link:hover { color:var(--primary-hover); }
+
+  /* Item Directory Grid */
+  .items-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px; margin-top:16px; }
+  .item-card { background:var(--card-bg); border-radius:12px; border:1px solid var(--border); padding:16px; cursor:pointer; transition:transform .2s, box-shadow .2s, border-color .2s; display:flex; flex-direction:column; gap:12px; }
+  .item-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.1); border-color:var(--primary); }
+  .item-card-header { display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border); padding-bottom:12px; }
+  .item-card-header h3 { margin:0; font-size:1.1rem; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item-card-body { display:flex; flex-direction:column; gap:6px; font-size:0.85rem; }
+  .item-card-row { display:flex; justify-content:space-between; }
+  .item-card-row span:first-child { color:var(--text-light); }
+  .item-card-row span:last-child { font-weight:600; color:var(--text); }
+  .item-card-stock { margin-top:6px; padding-top:8px; border-top:1px dashed var(--border); }
 </style>
 </head>
 <body data-theme="light">
@@ -218,6 +238,7 @@
 
 <nav class="main-tabs">
   <button data-view="prices" class="active">📋 Prices</button>
+  <button data-view="items">📦 Items Directory</button>
   <button data-view="analytics">📊 Analytics</button>
   <button data-view="deals">🔥 Deals</button>
   <button data-view="leaderboard">🏆 Leaderboard</button>
@@ -330,6 +351,27 @@
     </div>
     <p id="noDataMsg" class="empty-state">No price observations logged yet.</p>
     <div class="pagination" id="pagination"></div>
+  </div>
+</section>
+
+<!-- ===== ITEMS DIRECTORY VIEW ===== -->
+<section id="view-items" class="view">
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+      <h2 style="margin:0; border:none; padding:0;">📦 Item Directory</h2>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <input type="text" id="itemsSearch" placeholder="🔍 Search items..." style="min-width:200px;">
+        <select id="itemsDateRange" style="width:auto;">
+          <option value="all">All Time</option>
+          <option value="1d">Today</option>
+          <option value="7d" selected>Last 7 Days</option>
+          <option value="30d">Last 30 Days</option>
+          <option value="90d">Last 90 Days</option>
+        </select>
+      </div>
+    </div>
+    <div id="itemsGrid" class="items-grid"></div>
+    <p id="itemsEmptyMsg" class="empty-state" style="display:none;">No items found matching your criteria in this timeframe.</p>
   </div>
 </section>
 
@@ -593,6 +635,8 @@ let currentPage = 1;
 const PAGE_SIZE = 25;
 let dateRangeFilter = 'all';
 let sellerDateRangeFilter = 'all';
+let itemsDateRangeFilter = '7d';
+let itemsSearch = '';
 
 // Image upload state
 let cropperInstance = null;
@@ -628,6 +672,7 @@ $('themeToggle').addEventListener('click', () => {
   localStorage.setItem('lc_theme', document.body.dataset.theme);
   updateThemeIcon();
   renderAnalyticsView();
+  renderItemsView();
 });
 function updateThemeIcon() { $('themeToggle').textContent = document.body.dataset.theme === 'dark' ? '☀️' : '🌙'; }
 
@@ -683,6 +728,15 @@ function getIconHtml(itemName) {
   return `<div class="item-icon" style="display:inline-flex;align-items:center;justify-content:center;color:var(--text-light);font-size:16px;">?</div>`;
 }
 
+// ==== Navigation Helper ====
+window.jumpToItem = function(itemName) {
+  switchView('analytics');
+  $('analyticsSearch').value = itemName;
+  populateAnalyticsDropdown();
+  $('analyticsItem').value = itemName;
+  renderAnalyticsView();
+};
+
 // ==== Seller Profile Modal ====
 window.showSellerProfile = function(sellerName) {
   const seller = getCanonicalSeller(sellerName);
@@ -690,7 +744,6 @@ window.showSellerProfile = function(sellerName) {
   
   if (sObs.length === 0) return showToast('No data for this seller.', 'error');
   
-  // Sort ascending by date to ensure we grab the latest stats correctly
   sObs.sort((a,b) => (a.date||0) - (b.date||0));
 
   const items = {};
@@ -1082,11 +1135,7 @@ quickFind.addEventListener('input', () => {
       e.preventDefault();
       quickFind.value = '';
       quickFindResults.classList.remove('show');
-      switchView('analytics');
-      $('analyticsSearch').value = it;
-      populateAnalyticsDropdown();
-      $('analyticsItem').value = it;
-      renderAnalyticsView();
+      window.jumpToItem(it);
     });
     quickFindResults.appendChild(div);
   });
@@ -1332,6 +1381,10 @@ $('sellerDateRangeFilter').addEventListener('change', (e) => {
   renderAnalyticsView();
 });
 
+// Items Directory listeners
+$('itemsSearch').addEventListener('input', (e) => { itemsSearch = e.target.value; renderItemsView(); });
+$('itemsDateRange').addEventListener('change', (e) => { itemsDateRangeFilter = e.target.value; renderItemsView(); });
+
 document.querySelectorAll('#priceTable th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
     const key = th.dataset.sort;
@@ -1464,11 +1517,7 @@ function renderPricesView() {
 
       tr.querySelector('a[data-jump]').addEventListener('click', e => {
         e.preventDefault();
-        switchView('analytics');
-        $('analyticsSearch').value = o.item;
-        populateAnalyticsDropdown();
-        $('analyticsItem').value = o.item;
-        renderAnalyticsView();
+        window.jumpToItem(o.item);
       });
       const delBtn = tr.querySelector('button[data-del]');
       if (delBtn) delBtn.addEventListener('click', () => deleteObs(o.id));
@@ -1479,6 +1528,72 @@ function renderPricesView() {
   }
   renderPagination(totalPages, filtered.length);
   renderWatchlist();
+}
+
+function renderItemsView() {
+  if (activeView !== 'items') return;
+  const grid = $('itemsGrid');
+  const emptyMsg = $('itemsEmptyMsg');
+  
+  let cutoff = 0;
+  if (itemsDateRangeFilter !== 'all') {
+    const days = { '1d':1, '7d':7, '30d':30, '90d':90 }[itemsDateRangeFilter] || 0;
+    cutoff = Date.now() - days * 86400000;
+  }
+  
+  const q = normalize(itemsSearch);
+  const allItems = getUniqueItems().filter(it => normalize(it).includes(q));
+  
+  grid.innerHTML = '';
+  
+  let renderedCount = 0;
+  
+  allItems.forEach(item => {
+    const itemObs = observations.filter(o => o.item === item && (o.date || 0) >= cutoff);
+    if (itemObs.length === 0) return; // Don't show items with no data in this range
+    
+    renderedCount++;
+    
+    const prices = itemObs.map(o => getPrice(o)).filter(n => typeof n === 'number');
+    const minP = prices.length ? Math.min(...prices) : 0;
+    const maxP = prices.length ? Math.max(...prices) : 0;
+    const avgP = prices.length ? prices.reduce((a,b)=>a+b,0)/prices.length : 0;
+    
+    // Deduplicate stock
+    const latestPerSeller = {};
+    itemObs.sort((a,b) => (a.date||0) - (b.date||0)).forEach(o => {
+      latestPerSeller[getCanonicalSeller(o.seller)] = o;
+    });
+    const totalQty = Object.values(latestPerSeller).reduce((sum, o) => sum + getQty(o), 0);
+    
+    const lowVal = totalQty * minP;
+    const highVal = totalQty * maxP;
+    
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <div class="item-card-header">
+        ${getIconHtml(item).replace('32px','40px').replace('item-icon','item-icon large')}
+        <h3>${esc(item)}</h3>
+      </div>
+      <div class="item-card-body">
+        <div class="item-card-row"><span>Avg Price:</span> <span>${fmtNum(avgP)}</span></div>
+        <div class="item-card-row"><span>Price Range:</span> <span><span style="color:var(--success)">${fmtNum(minP)}</span> - <span style="color:var(--danger)">${fmtNum(maxP)}</span></span></div>
+        <div class="item-card-row"><span>Market Stock:</span> <span>${fmtNum(totalQty)}</span></div>
+        <div class="item-card-row item-card-stock"><span>Market Value:</span> <span>${fmtNum(lowVal)} - ${fmtNum(highVal)}</span></div>
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      window.jumpToItem(item);
+    });
+    grid.appendChild(card);
+  });
+  
+  if (renderedCount === 0) {
+    emptyMsg.style.display = 'block';
+  } else {
+    emptyMsg.style.display = 'none';
+  }
 }
 
 function renderPagination(totalPages, totalItems) {
@@ -1530,11 +1645,7 @@ function renderWatchlist() {
   body.querySelectorAll('button[data-unwatch]').forEach(btn => btn.addEventListener('click', () => toggleWatchlist(btn.dataset.unwatch)));
   body.querySelectorAll('a[data-jump]').forEach(a => a.addEventListener('click', e => {
     e.preventDefault();
-    switchView('analytics');
-    $('analyticsSearch').value = a.dataset.jump;
-    populateAnalyticsDropdown();
-    $('analyticsItem').value = a.dataset.jump;
-    renderAnalyticsView();
+    window.jumpToItem(a.dataset.jump);
   }));
 }
 
@@ -1760,11 +1871,9 @@ function renderSellerBreakdown(allItemObs) {
     cutoff = Date.now() - days * 86400000;
   }
   
-  // Filter observations by the specific date range
   const itemObs = allItemObs.filter(o => (o.date || 0) >= cutoff);
   const stats = {};
   
-  // Sort ascending to ensure we always grab the latest stats
   itemObs.sort((a,b) => (a.date||0) - (b.date||0));
 
   itemObs.forEach(o => {
@@ -1784,7 +1893,6 @@ function renderSellerBreakdown(allItemObs) {
     if (p < s.lowPrice) s.lowPrice = p;
     if (p > s.highPrice) s.highPrice = p;
     
-    // Since sorted asc, this will naturally update to the latest
     s.latestQty = q;
     s.latestDate = o.date || 0;
   });
@@ -1870,11 +1978,7 @@ function renderDealsView() {
     `).join('');
     body.querySelectorAll('a[data-jump]').forEach(a => a.addEventListener('click', e => {
       e.preventDefault();
-      switchView('analytics');
-      $('analyticsSearch').value = a.dataset.jump;
-      populateAnalyticsDropdown();
-      $('analyticsItem').value = a.dataset.jump;
-      renderAnalyticsView();
+      window.jumpToItem(a.dataset.jump);
     }));
     body.querySelectorAll('.seller-link').forEach(a => a.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1909,11 +2013,7 @@ function renderDealsView() {
     a._bound = true;
     a.addEventListener('click', e => {
       e.preventDefault();
-      switchView('analytics');
-      $('analyticsSearch').value = a.dataset.jump;
-      populateAnalyticsDropdown();
-      $('analyticsItem').value = a.dataset.jump;
-      renderAnalyticsView();
+      window.jumpToItem(a.dataset.jump);
     });
   });
 }
@@ -2496,6 +2596,7 @@ document.querySelector('#modal-root .modal-backdrop').addEventListener('click', 
 function renderAll() {
   updateDropzoneUI();
   if (activeView === 'prices') renderPricesView();
+  else if (activeView === 'items') renderItemsView();
   else if (activeView === 'analytics') renderAnalyticsView();
   else if (activeView === 'deals') renderDealsView();
   else if (activeView === 'leaderboard') renderLeaderboardView();
@@ -2507,3 +2608,4 @@ renderPricesView();
 </script>
 </body>
 </html>
+```
