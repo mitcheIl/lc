@@ -238,8 +238,8 @@
         </div>
         <div class="form-group">
           <label for="sellerName">Seller * <a href="#" id="reqNameChangeBtn" style="font-weight:normal;font-size:0.75rem;color:var(--primary);text-decoration:none;margin-left:8px;">[Request Name Change]</a></label>
-          <input type="text" id="sellerName" list="sellersDatalist" required placeholder="Player name..." autocomplete="off">
-          <datalist id="sellersDatalist"></datalist>
+          <input type="text" id="sellerName" required placeholder="Search or create player..." autocomplete="off">
+          <div id="sellerSuggest" class="item-suggest"></div>
         </div>
       </div>
       <div class="row">
@@ -556,6 +556,8 @@ let adminImageFilter = 'pending';
 const $ = id => document.getElementById(id);
 const itemNameInput = $('itemName');
 const itemSuggest = $('itemSuggest');
+const sellerNameInput = $('sellerName');
+const sellerSuggest = $('sellerSuggest');
 const loggedByInput = $('loggedBy');
 const toastEl = $('toast');
 const dropzone = $('dropzone');
@@ -764,7 +766,7 @@ $('reqNameChangeBtn').addEventListener('click', (e) => {
   };
 });
 
-// Autocomplete Logic
+// Item Autocomplete Logic
 itemNameInput.addEventListener('input', () => {
   const items = getUniqueItems();
   const q = normalize(itemNameInput.value);
@@ -827,6 +829,67 @@ itemNameInput.addEventListener('keydown', e => {
   else if (e.key === 'Escape') itemSuggest.classList.remove('show');
 });
 
+// Seller Autocomplete Logic
+let activeSellerSuggestion = -1;
+function showSellerSuggestions(query) {
+  const sellers = getUniqueSellers();
+  const q = normalize(query);
+  let suggestions = [];
+  if (!q) suggestions = sellers.slice(0, 20);
+  else {
+    const scored = sellers.map(s => {
+      const n = normalize(s);
+      let score;
+      if (n === q) score = 0;
+      else if (n.startsWith(q)) score = 1;
+      else if (n.includes(q)) score = 2;
+      else score = 3 + levenshtein(q, n);
+      return { s, score, n };
+    }).filter(x => x.score < 10 || x.n.includes(q)).sort((a,b)=>a.score-b.score).slice(0,20);
+    suggestions = scored.map(x => x.s);
+  }
+  sellerSuggest.innerHTML = '';
+  activeSellerSuggestion = -1;
+  suggestions.forEach(s => {
+    const div = document.createElement('div');
+    div.textContent = s;
+    div.addEventListener('mousedown', e => { 
+      e.preventDefault(); 
+      sellerNameInput.value = s; 
+      sellerSuggest.classList.remove('show'); 
+    });
+    sellerSuggest.appendChild(div);
+  });
+  
+  const hasExact = sellers.some(s => normalize(s) === q);
+  if (q && !hasExact) {
+    const createDiv = document.createElement('div');
+    createDiv.className = 'create-new';
+    createDiv.textContent = `➕ Create new player: "${query.trim()}"`;
+    createDiv.addEventListener('mousedown', e => { 
+      e.preventDefault(); 
+      sellerNameInput.value = query.trim(); 
+      sellerSuggest.classList.remove('show'); 
+    });
+    sellerSuggest.appendChild(createDiv);
+  }
+  if (sellerSuggest.children.length) sellerSuggest.classList.add('show');
+  else sellerSuggest.classList.remove('show');
+}
+
+sellerNameInput.addEventListener('input', () => showSellerSuggestions(sellerNameInput.value));
+sellerNameInput.addEventListener('focus', () => showSellerSuggestions(sellerNameInput.value));
+sellerNameInput.addEventListener('blur', () => setTimeout(() => sellerSuggest.classList.remove('show'), 150));
+sellerNameInput.addEventListener('keydown', e => {
+  const opts = [...sellerSuggest.querySelectorAll('div')];
+  if (!opts.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); activeSellerSuggestion = Math.min(activeSellerSuggestion+1, opts.length-1); opts.forEach((o,i)=>o.classList.toggle('active', i===activeSellerSuggestion)); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); activeSellerSuggestion = Math.max(activeSellerSuggestion-1, 0); opts.forEach((o,i)=>o.classList.toggle('active', i===activeSellerSuggestion)); }
+  else if (e.key === 'Enter' && activeSellerSuggestion >= 0) { e.preventDefault(); opts[activeSellerSuggestion].dispatchEvent(new MouseEvent('mousedown')); }
+  else if (e.key === 'Escape') sellerSuggest.classList.remove('show');
+});
+
+// Quick Find
 const quickFind = $('quickFind');
 const quickFindResults = $('quickFindResults');
 quickFind.addEventListener('input', () => {
@@ -960,9 +1023,10 @@ function updateReadOnlyUI() {
 $('priceForm').addEventListener('submit', async e => {
   e.preventDefault();
   if (readOnly) return showToast('Read-only mode is active.', 'error');
+  
   let item = itemNameInput.value.trim().replace(/\s+/g, ' ');
-  let seller = $('sellerName').value.trim();
-  seller = getCanonicalSeller(seller); // Apply any name change mapping
+  let seller = sellerNameInput.value.trim();
+  
   const location = $('location').value;
   const price = parseFloat(priceInput.value.replace(/,/g, ''));
   const qty = parseInt($('itemQty').value, 10);
@@ -971,35 +1035,58 @@ $('priceForm').addEventListener('submit', async e => {
 
   if (!item || !seller || !location || isNaN(price) || isNaN(qty) || !loggedBy) return showToast('Fill all required fields.', 'error');
 
+  // Item Dedup
   const items = getUniqueItems();
-  const normalized = normalize(item);
-  const exact = items.find(it => normalize(it) === normalized);
-  if (exact && exact !== item) {
-    if (confirm(`"${item}" matches "${exact}". Use the existing spelling?`)) { item = exact; itemNameInput.value = exact; }
-  } else if (!exact) {
+  const normalizedItem = normalize(item);
+  const exactItem = items.find(it => normalize(it) === normalizedItem);
+  if (exactItem && exactItem !== item) {
+    if (confirm(`"${item}" matches existing item "${exactItem}". Use the exact spelling?`)) { item = exactItem; itemNameInput.value = exactItem; }
+  } else if (!exactItem) {
     let bestMatch = null, bestDist = Infinity;
     for (const it of items) {
-      const d = levenshtein(normalized, normalize(it));
+      const d = levenshtein(normalizedItem, normalize(it));
       if (d < bestDist) { bestDist = d; bestMatch = it; }
     }
-    if (bestMatch && bestDist <= 2 && normalized.length >= 4) {
-      if (confirm(`⚠️ Typo detected:\n\nYou typed: "${item}"\nClosest: "${bestMatch}" (${bestDist} diff)\n\nUse "${bestMatch}"?\n(Cancel = create new)`)) {
+    if (bestMatch && bestDist <= 2 && normalizedItem.length >= 4) {
+      if (confirm(`⚠️ Typo in item name:\n\nYou typed: "${item}"\nClosest: "${bestMatch}" (${bestDist} diff)\n\nUse "${bestMatch}"?\n(Cancel = create new)`)) {
         item = bestMatch; itemNameInput.value = bestMatch;
       }
     }
   }
 
+  // Seller Dedup
+  const allSellers = getUniqueSellers();
+  const normalizedSeller = normalize(seller);
+  const exactSeller = allSellers.find(s => normalize(s) === normalizedSeller);
+  if (exactSeller && exactSeller !== seller) {
+    if (confirm(`"${seller}" matches existing player "${exactSeller}". Use the exact spelling?`)) { seller = exactSeller; sellerNameInput.value = exactSeller; }
+  } else if (!exactSeller) {
+    let bestMatch = null, bestDist = Infinity;
+    for (const s of allSellers) {
+      const d = levenshtein(normalizedSeller, normalize(s));
+      if (d < bestDist) { bestDist = d; bestMatch = s; }
+    }
+    if (bestMatch && bestDist <= 2 && normalizedSeller.length >= 3) {
+      if (confirm(`⚠️ Possible typo in player name:\n\nYou typed: "${seller}"\nClosest: "${bestMatch}" (${bestDist} diff)\n\nUse "${bestMatch}"?\n(Cancel = create new player)`)) {
+        seller = bestMatch; sellerNameInput.value = bestMatch;
+      }
+    }
+  }
+
+  // Apply Name Change Alias mapping AFTER validation
+  const canonicalSeller = getCanonicalSeller(seller);
+
   // Deduplication check for stock
   const thirtyMinsAgo = Date.now() - 30 * 60000;
   const recentDup = observations.find(o => 
     normalize(o.item) === normalize(item) && 
-    normalize(getCanonicalSeller(o.seller)) === normalize(seller) && 
+    normalize(getCanonicalSeller(o.seller)) === normalize(canonicalSeller) && 
     getPrice(o) === price && 
     getQty(o) === qty && 
     (o.date || 0) > thirtyMinsAgo
   );
   if (recentDup) {
-    if (!confirm(`⚠️ Someone just logged this exact price (${fmtNum(price)}) and quantity (${qty}) for ${seller} in the last 30 minutes.\n\nAre you sure you want to log it again?`)) {
+    if (!confirm(`⚠️ Someone just logged this exact price (${fmtNum(price)}) and quantity (${qty}) for ${canonicalSeller} in the last 30 minutes.\n\nAre you sure you want to log it again?`)) {
       return;
     }
   }
@@ -1023,7 +1110,7 @@ $('priceForm').addEventListener('submit', async e => {
       }
     }
 
-    await push(ref(db, 'observations'), { item, seller, location, price, qty, event: event||null, notes: notes||null, loggedBy, date: serverTimestamp(), uid: currentUid });
+    await push(ref(db, 'observations'), { item, seller: canonicalSeller, location, price, qty, event: event||null, notes: notes||null, loggedBy, date: serverTimestamp(), uid: currentUid });
     
     localStorage.setItem('lc_guild_logger_name', loggedBy);
     $('priceForm').reset();
@@ -1036,17 +1123,6 @@ $('priceForm').addEventListener('submit', async e => {
 const savedName = localStorage.getItem('lc_guild_logger_name');
 if (savedName) loggedByInput.value = savedName;
 loggedByInput.addEventListener('change', () => localStorage.setItem('lc_guild_logger_name', loggedByInput.value.trim()));
-
-// Populate Datalist
-function populateSellersDatalist() {
-  const list = $('sellersDatalist');
-  list.innerHTML = '';
-  getUniqueSellers().forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s;
-    list.appendChild(opt);
-  });
-}
 
 document.querySelectorAll('.main-tabs button').forEach(btn => {
   btn.addEventListener('click', () => switchView(btn.dataset.view));
@@ -1201,7 +1277,6 @@ function renderPricesView() {
   }
   renderPagination(totalPages, filtered.length);
   renderWatchlist();
-  populateSellersDatalist();
 }
 
 function renderPagination(totalPages, totalItems) {
@@ -2067,7 +2142,6 @@ document.querySelector('#modal-root .modal-backdrop').addEventListener('click', 
 
 function renderAll() {
   updateDropzoneUI();
-  populateSellersDatalist();
   if (activeView === 'prices') renderPricesView();
   else if (activeView === 'analytics') renderAnalyticsView();
   else if (activeView === 'deals') renderDealsView();
